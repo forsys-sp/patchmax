@@ -1,0 +1,20 @@
+ Common R ignores
+*.Rproj
+*.Rproj.user
+*.Rhistory
+*.RData
+*.Ruserdata
+/R/bak/*
+.env
+
+# Mac ignores
+.DS_Store
+
+# Sublime ignores
+*sublime*
+
+# VSCode ignores
+/.vscode/*
+.Rproj.user
+
+/data/*
