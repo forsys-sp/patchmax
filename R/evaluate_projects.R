@@ -15,7 +15,6 @@ runbfs <- function(r) {
 
 fun1 <- function(r) {
   #r <- 2573
-
   BFS <- igraph::bfs(St_adj, root = r, unreachable = FALSE)
   BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
   BFS_Stands2 <- match(BFS_Stands, St_id)
@@ -124,13 +123,52 @@ fun1 <- function(r) {
 #' @importFrom parallel stopCluster
 #'
 
-simulate_projects <- function (St_id, St_adj, St_area, St_objective, P_size , P_size_slack, P_number,St_threshold = NULL, St_threshold_value = NULL,P_constraint = NULL, P_constraint_max_value = NULL, P_constraint_min_value = NULL, Candidate_min_size = NULL){
+simulate_projects <- function(
+  St_id, 
+  St_adj, 
+  St_area, 
+  St_objective, 
+  P_size, 
+  P_size_slack, 
+  P_number,St_threshold = NULL, 
+  St_threshold_value = NULL,
+  P_constraint = NULL, 
+  P_constraint_max_value = NULL, 
+  P_constraint_min_value = NULL, 
+  Candidate_min_size = NULL){
 
-  fun2(St_id, St_adj, St_area, St_objective, P_size , P_size_slack, P_number,St_threshold, St_threshold_value,P_constraint, P_constraint_max_value, P_constraint_min_value, Candidate_min_size)
+  fun2(St_id = St_id, 
+       St_adj = St_adj, 
+       St_area = St_area, 
+       St_objective = St_objective, 
+       P_size = P_size, 
+       P_size_slack = P_size_slack, 
+       P_number = P_number,
+       St_threshold = St_threshold, 
+       St_threshold_value = St_threshold_value,
+       P_constraint = P_constraint, 
+       P_constraint_max_value = P_constraint_max_value, 
+       P_constraint_min_value = P_constraint_min_value, 
+       Candidate_min_size = Candidate_min_size)
 
 }
 
-fun2 <- function(St_id, St_adj, St_area, St_objective, P_size , P_size_slack, P_number,St_threshold, St_threshold_value, P_constraint, P_constraint_max_value, P_constraint_min_value, Candidate_min_size) {
+fun2 <- function(
+  St_id, 
+  St_adj, 
+  St_area, 
+  St_objective, 
+  P_size, 
+  P_size_slack, 
+  P_number,
+  St_threshold, 
+  St_threshold_value, 
+  P_constraint, 
+  P_constraint_max_value, 
+  P_constraint_min_value, 
+  Candidate_min_size
+  ) {
+  
   St_area2 <- St_area
   St_objective2 <- St_objective
   P_constraint2 <- P_constraint

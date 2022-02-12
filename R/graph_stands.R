@@ -13,12 +13,24 @@
 #' @importFrom sf st_overlaps
 #' @importFrom igraph graph_from_data_frame
 #'
-calculate_adj <- function(Shapefile, Adjdist, St_id) {
-  fun3(Shapefile, Adjdist, St_id)
+calculate_adj <- function(
+  Shapefile, 
+  Adjdist, 
+  St_id
+  ) {
+  
+  fun3(Shapefile = Shapefile, 
+       Adjdist = Adjdist, 
+       St_id = St_id)
 }
 
 
-fun3 <- function(Shapefile, Adjdist, St_id) {
+fun3 <- function(
+  Shapefile, 
+  Adjdist, 
+  St_id
+  ) {
+  
   shapefile <- sf::read_sf(Shapefile)
   shapefile2 <- sf::st_buffer(shapefile, dist = Adjdist)
   adj <- sf::st_overlaps(shapefile2, sparse = TRUE)
@@ -26,6 +38,7 @@ fun3 <- function(Shapefile, Adjdist, St_id) {
   adj2 <- data.frame(A = St_id[adj1$row.id], B = St_id[adj1$col.id])
   g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
   return(g)
+  
 }
 
 
@@ -45,6 +58,7 @@ read_adj <- function(Adjlist) {
 }
 
 read_adj <- function(Adjlist) {
+  
   adj1 <- data.frame(Adjlist)
   adj2 <- data.frame(A = adj1[,1], B = adj1[,2])
   g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
