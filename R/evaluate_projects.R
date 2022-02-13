@@ -5,7 +5,7 @@
 #' @export
 
 runbfs <- function(r) {
-  fun1(r)
+  runbfs_func(r)
 }
 
 
@@ -13,13 +13,12 @@ runbfs <- function(r) {
 #output <- data.table::as.data.table(matrix(unlist(result), ncol = 4, byrow = TRUE))
 
 
-fun1 <- function(r) {
-  #r <- 2573
+runbfs_func <- function(r) {
+
   BFS <- igraph::bfs(St_adj, root = r, unreachable = FALSE)
   BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
   BFS_Stands2 <- match(BFS_Stands, St_id)
   Areas <- cumsum(St_area[BFS_Stands2])
-
 
   Areas_table <- data.table::data.table(Csum = Areas, val = Areas)
   setattr(Areas_table, "sorted", "Csum")
@@ -137,23 +136,24 @@ simulate_projects <- function(
   P_constraint_min_value = NULL, 
   Candidate_min_size = NULL){
 
-  fun2(St_id = St_id, 
-       St_adj = St_adj, 
-       St_area = St_area, 
-       St_objective = St_objective, 
-       P_size = P_size, 
-       P_size_slack = P_size_slack, 
-       P_number = P_number,
-       St_threshold = St_threshold, 
-       St_threshold_value = St_threshold_value,
-       P_constraint = P_constraint, 
-       P_constraint_max_value = P_constraint_max_value, 
-       P_constraint_min_value = P_constraint_min_value, 
-       Candidate_min_size = Candidate_min_size)
+  simulate_projects_func(
+    St_id = St_id, 
+    St_adj = St_adj, 
+    St_area = St_area, 
+    St_objective = St_objective, 
+    P_size = P_size, 
+    P_size_slack = P_size_slack, 
+    P_number = P_number,
+    St_threshold = St_threshold, 
+    St_threshold_value = St_threshold_value,
+    P_constraint = P_constraint, 
+    P_constraint_max_value = P_constraint_max_value, 
+    P_constraint_min_value = P_constraint_min_value, 
+    Candidate_min_size = Candidate_min_size)
 
 }
 
-fun2 <- function(
+simulate_projects_func <- function(
   St_id, 
   St_adj, 
   St_area, 
@@ -189,13 +189,12 @@ fun2 <- function(
   no_cores <- parallel::detectCores() - 1
   cl <- parallel::makeCluster(getOption("cl.cores", no_cores))
   doParallel::registerDoParallel(cl)
-  parallel::clusterExport(cl = cl, varlist = c("fun1","St_id", "St_adj", "St_area", "St_area2", "St_objective", "St_objective2", "P_size","P_size_slack", "P_number", "St_threshold","St_threshold_value","P_constraint","P_constraint_max_value","P_constraint_min_value", "Candidate_min_size", "bfs", "data.table", "setattr", "V"), envir = environment())
+  parallel::clusterExport(cl = cl, varlist = c("runbfs_func","St_id", "St_adj", "St_area", "St_area2", "St_objective", "St_objective2", "P_size","P_size_slack", "P_number", "St_threshold","St_threshold_value","P_constraint","P_constraint_max_value","P_constraint_min_value", "Candidate_min_size", "bfs", "data.table", "setattr", "V"), envir = environment())
 
   Blocks_table <- data.table::data.table()
   Stands_table <- data.table::data.table()
 
-  for (b in 1:P_number) {
-    #b <- 1
+  for (b in 1:P_number) { # for b in P_number of projects
 
     #####Eliminate unfeasible candidates
     if(b == 1){
@@ -209,83 +208,114 @@ fun2 <- function(
     #result <- parallel::parLapply(cl, sample(1:length(Vertices), size = length(as.numeric(Vertices))/2), runbfs)
     #####
     if (!is.null(unlist(result))){
-
-    parallel::clusterExport(cl = cl, varlist = c("result"), envir = environment())
-
-    output <- data.table::as.data.table(matrix(unlist(result), ncol = 4, byrow = TRUE))
-
-    output2 <- subset(output, V4 %in% c(0,1,2))
-    output3 <- subset(output, V4 %in% c(3))
-    if(nrow(output2) >= 1) {
-      output <- output2
-    } else{
-      output <- output3
-    }
-
-    best <- head(output[V3 == max(V3)], 1)
-    best_r <- best$V1
-
-    #####Eliminate unfeasible candidates
-    if(b == 1){
-      feasible_seeds <- output$V1
-      feasible_vertices <- V(St_adj)[feasible_seeds]
-    }
-    ##########
-
-    BFS <- igraph::bfs(St_adj, root = best_r, unreachable = FALSE)
-    BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
-
-    BFS_Stands2 <- match(BFS_Stands, St_id)
-
-    Stands_block <- BFS_Stands2[1:best$V2]
-    Stands_treat <- BFS_Stands2[1:best$V2]
-
-    Stands_ID <- St_id[Stands_block]
-
-    Stands_area <- St_area2[Stands_block]
-    Block_area <- sum(St_area[Stands_block])
-
-    Stands_Objective <- St_objective2[Stands_block]
-    Block_Objective <- sum(St_objective[Stands_block])
-
-    Stands_treat[which(St_area[Stands_treat] %in% 0)] <- 0
-    Stands_treat[which(Stands_treat != 0)] <- 1
-
-    Project_type <- best$V4
-
-    if (!is.null(P_constraint)) {
-    Stands_constraint <-  P_constraint2[Stands_block]
-    Block_constraint <- sum(P_constraint[Stands_block])
-
-    #here you have to define outputs with project constraint when P_constraint !is.null
-    Stands_table2 <- data.table::data.table(Project = b, Stands = Stands_ID, DoTreat = Stands_treat, Area = Stands_area, Objective = Stands_Objective, Constrainst = Stands_constraint)
-    Stands_table <- rbind(Stands_table, Stands_table2)
-
-    Blocks_table2 <- data.table::data.table(Project = b, Area = Block_area, Objective = Block_Objective, Constraint = Block_constraint,Type = Project_type)
-    Blocks_table <- rbind(Blocks_table, Blocks_table2)
-
-    print(paste("Planning Area: ", b, " ;Total area: ", Block_area, " ;Objective value: ", Block_Objective," ;Constraint: ", Block_constraint," ;Project type: ",best$V4, sep = "", collapse = ""))
-    }
-
-
-    if (is.null(P_constraint)) {
-    #here you have to define outputs with project constraint when P_constraint !is.null
-    Stands_table2 <- data.table::data.table(Project = b, Stands = Stands_ID, DoTreat = Stands_treat, Area = Stands_area, Objective = Stands_Objective)
-    Stands_table <- rbind(Stands_table, Stands_table2)
-
-    Blocks_table2 <- data.table::data.table(Project = b, Area = Block_area, Objective = Block_Objective, Type = Project_type)
-    Blocks_table <- rbind(Blocks_table, Blocks_table2)
-
-    print(paste("Planning Area: ", b, " ;Total area: ", Block_area, " ;Objective value: ", Block_Objective," ;Project type: ",best$V4, sep = "", collapse = ""))
-    }
-
-    St_adj <- igraph::delete.vertices(St_adj, BFS$order[1:best$V2])
-
-    #####Eliminame unfeasible candidates
-    feasible_vertices2 <- feasible_vertices[!feasible_vertices %in% BFS$order[1:best$V2]]
-    feasible_positions <- which(V(St_adj) %in% feasible_vertices2)
-    ##########
-    parallel::clusterExport(cl = cl, varlist = c("St_adj","feasible_positions"), envir = environment())
+  
+      parallel::clusterExport(cl = cl, varlist = c("result"), envir = environment())
+  
+      output <- data.table::as.data.table(matrix(unlist(result), ncol = 4, byrow = TRUE))
+  
+      output2 <- subset(output, V4 %in% c(0,1,2))
+      output3 <- subset(output, V4 %in% c(3))
+      if(nrow(output2) >= 1) {
+        output <- output2
+      } else{
+        output <- output3
+      }
+  
+      best <- head(output[V3 == max(V3)], 1)
+      best_r <- best$V1
+  
+      #####Eliminate unfeasible candidates
+      if(b == 1){
+        feasible_seeds <- output$V1
+        feasible_vertices <- V(St_adj)[feasible_seeds]
+      }
+      ##########
+  
+      BFS <- igraph::bfs(St_adj, root = best_r, unreachable = FALSE)
+      BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
+  
+      BFS_Stands2 <- match(BFS_Stands, St_id)
+  
+      Stands_block <- BFS_Stands2[1:best$V2]
+      Stands_treat <- BFS_Stands2[1:best$V2]
+  
+      Stands_ID <- St_id[Stands_block]
+  
+      Stands_area <- St_area2[Stands_block]
+      Block_area <- sum(St_area[Stands_block])
+  
+      Stands_Objective <- St_objective2[Stands_block]
+      Block_Objective <- sum(St_objective[Stands_block])
+  
+      Stands_treat[which(St_area[Stands_treat] %in% 0)] <- 0
+      Stands_treat[which(Stands_treat != 0)] <- 1
+  
+      Project_type <- best$V4
+  
+      if (!is.null(P_constraint)) {
+      Stands_constraint <-  P_constraint2[Stands_block]
+      Block_constraint <- sum(P_constraint[Stands_block])
+  
+      #here you have to define outputs with project constraint when P_constraint !is.null
+      Stands_table2 <- data.table::data.table(Project = b, 
+                                              Stands = Stands_ID, 
+                                              DoTreat = Stands_treat, 
+                                              Area = Stands_area, 
+                                              Objective = Stands_Objective,
+                                              Constrainst = Stands_constraint)
+      
+      Stands_table <- rbind(Stands_table, Stands_table2)
+  
+      Blocks_table2 <- data.table::data.table(Project = b, 
+                                              Area = Block_area, 
+                                              Objective = Block_Objective, 
+                                              Constraint = Block_constraint,
+                                              Type = Project_type)
+      
+      Blocks_table <- rbind(Blocks_table, Blocks_table2)
+  
+      print(paste("Planning Area: ", b, 
+                  " ;Total area: ", Block_area,
+                  " ;Objective value: ", Block_Objective,
+                  " ;Constraint: ", Block_constraint,
+                  " ;Project type: ",best$V4, 
+                  sep = "", collapse = ""))
+      }
+  
+  
+      if (is.null(P_constraint)) {
+        #here you have to define outputs with project constraint when P_constraint !is.null
+        Stands_table2 <- data.table::data.table(Project = b, 
+                                                Stands = Stands_ID, 
+                                                DoTreat = Stands_treat, 
+                                                Area = Stands_area, 
+                                                Objective = Stands_Objective)
+        
+        Stands_table <- rbind(Stands_table, Stands_table2)
+    
+        Blocks_table2 <- data.table::data.table(Project = b, 
+                                                Area = Block_area, 
+                                                Objective = Block_Objective, 
+                                                Type = Project_type)
+        
+        Blocks_table <- rbind(Blocks_table, Blocks_table2)
+    
+        print(paste("Planning Area: ", b, 
+                    " ;Total area: ", Block_area, 
+                    " ;Objective value: ", Block_Objective,
+                    " ;Project type: ",best$V4, 
+                    sep = "", collapse = ""))
+      }
+  
+      St_adj <- igraph::delete.vertices(St_adj, BFS$order[1:best$V2])
+  
+      #####Eliminame unfeasible candidates
+      feasible_vertices2 <- feasible_vertices[!feasible_vertices %in% BFS$order[1:best$V2]]
+      feasible_positions <- which(V(St_adj) %in% feasible_vertices2)
+      ##########
+      parallel::clusterExport(cl = cl, 
+                              varlist = c("St_adj","feasible_positions"), 
+                              envir = environment())
     } else {print(paste("There is no feasible projects"))
       break
       }
