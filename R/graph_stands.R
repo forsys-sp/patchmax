@@ -19,9 +19,10 @@ calculate_adj <- function(
   St_id
   ) {
   
-  calculate_adj_func(Shapefile = Shapefile, 
-       Adjdist = Adjdist, 
-       St_id = St_id)
+  calculate_adj_func(
+    Shapefile = Shapefile, 
+    Adjdist = Adjdist, 
+    St_id = St_id)
 }
 
 
@@ -46,7 +47,6 @@ calculate_adj_func <- function(
   # g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
   
   return(g)
-  
 }
 
 
@@ -66,7 +66,6 @@ read_adj <- function(Adjlist) {
 }
 
 read_adj_func <- function(Adjlist) {
-  
   adj1 <- data.frame(Adjlist)
   adj2 <- data.frame(A = adj1[,1], B = adj1[,2])
   g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)

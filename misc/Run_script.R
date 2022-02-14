@@ -9,11 +9,14 @@ library(data.table)
 library(Patchmax)
 
 #Read shapefile to access the stand field values
-Shape = read_sf("~/GitHub/forsys-data/shasta.geojson") %>% slice_head(n = 1000) %>% st_make_valid()
+geom = read_sf("~/GitHub/forsys-data/test_forest.geojson") %>% st_make_valid()
 
 #Method 1
 #Generating igraph object from shapefile
-Adj_object <- calculate_adj(Shapefile = Shape, Adjdist = 3, St_id = Shape$cell_id)
+adj_object <- calculate_adj(Shapefile = geom, Adjdist = 3, St_id = Shape$cell_id)
+# save(adj_object, file = '~/GitHub/forsys-data/test_adj.Rdata')
+
+load('~/GitHub/forsys-data/test_adj.Rdata')
 
 #Method 2
 #Generating igraph object from adjacency table (numbers in the adjacency table need to match the Stand_ID vector)
@@ -22,12 +25,18 @@ Adj_object <- calculate_adj(Shapefile = Shape, Adjdist = 3, St_id = Shape$cell_i
 start_time <- Sys.time()
 #Simulating the projects
 
+args <- list()
+args$id <- geom$cell_id
+args$adj <- adj_object
+args$area <- geom$area_ha
+args$objective <- geom$priority1
+
 generate_outputs <- simulate_projects(
-                            St_id = Shape$cell_id,
-                            St_adj = Adj_object,
-                            St_area = Shape$AREA_HA,
-                            St_objective = Shape$TVSUM_SPM,
-                            P_size = 4000,
+                            St_id = args$id,
+                            St_adj = args$adj,
+                            St_area = args$area,
+                            St_objective = args$objective,
+                            P_size = 10000,
                             P_size_slack = 0.05,
                             P_number = 10,
                             #St_threshold = Shape$NetValue,
@@ -47,8 +56,8 @@ generate_outputs[[1]]
 #stand level outputs
 generate_outputs[[2]]$DoTreat
 
-Shape2 <- Shape %>% left_join(generate_outputs[[2]] %>% dplyr::rename(cell_id = Stands))
-plot(Shape2[,'Project'])
+geom2 <- geom %>% left_join(generate_outputs[[2]] %>% dplyr::rename(cell_id = Stands))
+plot(geom2[,'Project'])
 
 write.csv(generate_outputs[[1]], file = "N:/Patchmax/Output/ExProject.csv")
 write.csv(generate_outputs[[2]], file = "N:/Patchmax/Output/ExStands.csv")

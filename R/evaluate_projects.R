@@ -9,9 +9,9 @@ runbfs <- function(r) {
 }
 
 
-#result <- lapply(1:length(Vertices), runbfs)
-#output <- data.table::as.data.table(matrix(unlist(result), ncol = 4, byrow = TRUE))
-
+#' Intenral Evaluate BFS
+#' @param r Stand root
+#' 
 
 runbfs_func <- function(r) {
 
@@ -153,6 +153,8 @@ simulate_projects <- function(
 
 }
 
+#' Internal simulate landscape projects function
+
 simulate_projects_func <- function(
   St_id, 
   St_adj, 
@@ -188,21 +190,53 @@ simulate_projects_func <- function(
 
   no_cores <- parallel::detectCores() - 1
   cl <- parallel::makeCluster(getOption("cl.cores", no_cores))
+  cat(paste0('Running PatchMax using ', no_cores, ' cores\n'))
+  
   doParallel::registerDoParallel(cl)
-  parallel::clusterExport(cl = cl, varlist = c("runbfs_func","St_id", "St_adj", "St_area", "St_area2", "St_objective", "St_objective2", "P_size","P_size_slack", "P_number", "St_threshold","St_threshold_value","P_constraint","P_constraint_max_value","P_constraint_min_value", "Candidate_min_size", "bfs", "data.table", "setattr", "V"), envir = environment())
+  parallel::clusterExport(
+    cl = cl,
+    varlist = c(
+      "runbfs_func",
+      "St_id",
+      "St_adj",
+      "St_area",
+      "St_area2",
+      "St_objective",
+      "St_objective2",
+      "P_size",
+      "P_size_slack",
+      "P_number",
+      "St_threshold",
+      "St_threshold_value",
+      "P_constraint",
+      "P_constraint_max_value",
+      "P_constraint_min_value",
+      "Candidate_min_size",
+      "bfs",
+      "data.table",
+      "setattr",
+      "V"
+    ),
+    envir = environment()
+  )
 
   Blocks_table <- data.table::data.table()
   Stands_table <- data.table::data.table()
 
   for (b in 1:P_number) { # for b in P_number of projects
 
+    cat(paste0("\n------------------\nPlanning area #", b, '\n'))
+    
+    # browser()
     #####Eliminate unfeasible candidates
     if(b == 1){
       Vertices <- igraph::V(St_adj)
       #result <- parallel::parLapply(cl, sample(1:length(Vertices), size = length(as.numeric(Vertices))/2), runbfs)
-      result <- parallel::parLapply(cl, 1:length(Vertices), runbfs)
+      # result <- parallel::parLapply(cl, 1:length(Vertices), runbfs)
+      result <- pbapply::pblapply(1:length(Vertices), runbfs, cl=cl)
     } else {
-      result <- parallel::parLapply(cl, feasible_positions, runbfs)
+      # result <- parallel::parLapply(cl, feasible_positions, runbfs)
+      result <- pbapply::pblapply(feasible_positions, runbfs, cl=cl)
     }
     #####Eliminate seeds
     #result <- parallel::parLapply(cl, sample(1:length(Vertices), size = length(as.numeric(Vertices))/2), runbfs)
@@ -252,38 +286,34 @@ simulate_projects_func <- function(
   
       Project_type <- best$V4
   
+      Block_constraint <- NULL
+      Stands_constraint <- NULL
+      
       if (!is.null(P_constraint)) {
-      Stands_constraint <-  P_constraint2[Stands_block]
-      Block_constraint <- sum(P_constraint[Stands_block])
-  
-      #here you have to define outputs with project constraint when P_constraint !is.null
-      Stands_table2 <- data.table::data.table(Project = b, 
-                                              Stands = Stands_ID, 
-                                              DoTreat = Stands_treat, 
-                                              Area = Stands_area, 
-                                              Objective = Stands_Objective,
-                                              Constrainst = Stands_constraint)
-      
-      Stands_table <- rbind(Stands_table, Stands_table2)
-  
-      Blocks_table2 <- data.table::data.table(Project = b, 
-                                              Area = Block_area, 
-                                              Objective = Block_Objective, 
-                                              Constraint = Block_constraint,
-                                              Type = Project_type)
-      
-      Blocks_table <- rbind(Blocks_table, Blocks_table2)
-  
-      print(paste("Planning Area: ", b, 
-                  " ;Total area: ", Block_area,
-                  " ;Objective value: ", Block_Objective,
-                  " ;Constraint: ", Block_constraint,
-                  " ;Project type: ",best$V4, 
-                  sep = "", collapse = ""))
+        Stands_constraint <-  P_constraint2[Stands_block]
+        Block_constraint <- sum(P_constraint[Stands_block])
+    
+        #here you have to define outputs with project constraint when P_constraint !is.null
+        Stands_table2 <- data.table::data.table(Project = b, 
+                                                Stands = Stands_ID, 
+                                                DoTreat = Stands_treat, 
+                                                Area = Stands_area, 
+                                                Objective = Stands_Objective,
+                                                Constrainst = Stands_constraint)
+        
+        Stands_table <- rbind(Stands_table, Stands_table2)
+    
+        Blocks_table2 <- data.table::data.table(Project = b, 
+                                                Area = Block_area, 
+                                                Objective = Block_Objective, 
+                                                Constraint = Block_constraint,
+                                                Type = Project_type)
+        
+        Blocks_table <- rbind(Blocks_table, Blocks_table2)
       }
-  
-  
+    
       if (is.null(P_constraint)) {
+        
         #here you have to define outputs with project constraint when P_constraint !is.null
         Stands_table2 <- data.table::data.table(Project = b, 
                                                 Stands = Stands_ID, 
@@ -299,14 +329,14 @@ simulate_projects_func <- function(
                                                 Type = Project_type)
         
         Blocks_table <- rbind(Blocks_table, Blocks_table2)
-    
-        print(paste("Planning Area: ", b, 
-                    " ;Total area: ", Block_area, 
-                    " ;Objective value: ", Block_Objective,
-                    " ;Project type: ",best$V4, 
-                    sep = "", collapse = ""))
       }
   
+      cat(paste0("  total area: ", Block_area,
+                "; objective value: ", Block_Objective,
+                "; constraint: ", Block_constraint,
+                "; project type: ",best$V4,
+                "\n"))
+        
       St_adj <- igraph::delete.vertices(St_adj, BFS$order[1:best$V2])
   
       #####Eliminame unfeasible candidates
