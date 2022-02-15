@@ -129,12 +129,16 @@ simulate_projects <- function(
   St_objective, 
   P_size, 
   P_size_slack, 
-  P_number,St_threshold = NULL, 
+  P_number,
+  St_threshold = NULL, 
   St_threshold_value = NULL,
   P_constraint = NULL, 
   P_constraint_max_value = NULL, 
   P_constraint_min_value = NULL, 
-  Candidate_min_size = NULL){
+  Candidate_min_size = NULL,
+  Sample_n = NULL,
+  Sample_seed = NULL
+  ){
 
   simulate_projects_func(
     St_id = St_id, 
@@ -149,7 +153,10 @@ simulate_projects <- function(
     P_constraint = P_constraint, 
     P_constraint_max_value = P_constraint_max_value, 
     P_constraint_min_value = P_constraint_min_value, 
-    Candidate_min_size = Candidate_min_size)
+    Candidate_min_size = Candidate_min_size,
+    Sample_n = Sample_n,
+    Sample_seed = Sample_seed
+    )
 
 }
 
@@ -168,7 +175,9 @@ simulate_projects_func <- function(
   P_constraint, 
   P_constraint_max_value, 
   P_constraint_min_value, 
-  Candidate_min_size
+  Candidate_min_size,
+  Sample_n,
+  Sample_seed
   ) {
   
   St_area2 <- St_area
@@ -227,15 +236,18 @@ simulate_projects_func <- function(
 
     cat(paste0("\n------------------\nPlanning area #", b, '\n'))
     
-    # browser()
     #####Eliminate unfeasible candidates
     if(b == 1){
       Vertices <- igraph::V(St_adj)
-      #result <- parallel::parLapply(cl, sample(1:length(Vertices), size = length(as.numeric(Vertices))/2), runbfs)
-      # result <- parallel::parLapply(cl, 1:length(Vertices), runbfs)
-      result <- pbapply::pblapply(1:length(Vertices), runbfs, cl=cl)
+      
+      if(!is.null(Sample_n)){
+        if(!is.null(Sample_seed))
+          set.seed(Sample_seed)
+        Vertices <- sample(Vertices, size = Sample_n)
+      }
+      
+      result <- pbapply::pblapply(Vertices, runbfs, cl=cl)
     } else {
-      # result <- parallel::parLapply(cl, feasible_positions, runbfs)
       result <- pbapply::pblapply(feasible_positions, runbfs, cl=cl)
     }
     #####Eliminate seeds
@@ -292,64 +304,48 @@ simulate_projects_func <- function(
       if (!is.null(P_constraint)) {
         Stands_constraint <-  P_constraint2[Stands_block]
         Block_constraint <- sum(P_constraint[Stands_block])
-    
-        #here you have to define outputs with project constraint when P_constraint !is.null
-        Stands_table2 <- data.table::data.table(Project = b, 
-                                                Stands = Stands_ID, 
-                                                DoTreat = Stands_treat, 
-                                                Area = Stands_area, 
-                                                Objective = Stands_Objective,
-                                                Constrainst = Stands_constraint)
-        
-        Stands_table <- rbind(Stands_table, Stands_table2)
-    
-        Blocks_table2 <- data.table::data.table(Project = b, 
-                                                Area = Block_area, 
-                                                Objective = Block_Objective, 
-                                                Constraint = Block_constraint,
-                                                Type = Project_type)
-        
-        Blocks_table <- rbind(Blocks_table, Blocks_table2)
       }
     
-      if (is.null(P_constraint)) {
-        
-        #here you have to define outputs with project constraint when P_constraint !is.null
-        Stands_table2 <- data.table::data.table(Project = b, 
-                                                Stands = Stands_ID, 
-                                                DoTreat = Stands_treat, 
-                                                Area = Stands_area, 
-                                                Objective = Stands_Objective)
-        
-        Stands_table <- rbind(Stands_table, Stands_table2)
-    
-        Blocks_table2 <- data.table::data.table(Project = b, 
-                                                Area = Block_area, 
-                                                Objective = Block_Objective, 
-                                                Type = Project_type)
-        
-        Blocks_table <- rbind(Blocks_table, Blocks_table2)
-      }
+      #here you have to define outputs with project constraint when P_constraint !is.null
+      Stands_table2 <- data.table::data.table(Project = b, 
+                                              Stands = Stands_ID, 
+                                              DoTreat = Stands_treat, 
+                                              Area = Stands_area, 
+                                              Objective = Stands_Objective,
+                                              Constraint = Stands_constraint)
+      
+      Stands_table <- rbind(Stands_table, Stands_table2)
+  
+      Blocks_table2 <- data.table::data.table(Project = b, 
+                                              Area = Block_area, 
+                                              Objective = Block_Objective, 
+                                              Constraint = Block_constraint,
+                                              Type = Project_type)
+      
+      Blocks_table <- rbind(Blocks_table, Blocks_table2)
+  
   
       cat(paste0("  total area: ", Block_area,
                 "; objective value: ", Block_Objective,
                 "; constraint: ", Block_constraint,
-                "; project type: ",best$V4,
-                "\n"))
+                "; project type: ",best$V4))
         
       St_adj <- igraph::delete.vertices(St_adj, BFS$order[1:best$V2])
   
-      #####Eliminame unfeasible candidates
+      #####Eliminate unfeasible candidates
       feasible_vertices2 <- feasible_vertices[!feasible_vertices %in% BFS$order[1:best$V2]]
       feasible_positions <- which(V(St_adj) %in% feasible_vertices2)
       ##########
+      
       parallel::clusterExport(cl = cl, 
                               varlist = c("St_adj","feasible_positions"), 
                               envir = environment())
-    } else {print(paste("There is no feasible projects"))
+    } else {
+      print(paste("There is no feasible projects"))
       break
-      }
+    }
   }
+  
   parallel::stopCluster(cl = cl)
   results <- list(Blocks_table, Stands_table)
   return(results)
