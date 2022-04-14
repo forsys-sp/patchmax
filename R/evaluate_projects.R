@@ -30,20 +30,21 @@ runbfs_func <- function(r) {
       return ()
   }
 
+  # if constraint is found
   if (!is.null(P_constraint)) {
-  Constraint <- cumsum(P_constraint[BFS_Stands2[1:limit_position]])
-  Constraint_table <- data.table::data.table(Csum = Constraint, step1 = 0, step2 = 0)
-  Constraint_table[, step1 := c(Constraint_table$Csum > P_constraint_min_value)]
-  Constraint_table[, step2 := c(Constraint_table$Csum < P_constraint_max_value)]
-  f_position <-  tail(which(Constraint_table$step1 == TRUE &  Constraint_table$step2 == TRUE),1)
-    if(length(f_position) == 0){
-      Invalid <- 1
-      } else if (Areas[f_position] > Candidate_min_size){
-         limit_position <- f_position
-      } else {
-        return ()
-         }
-     }
+    Constraint <- cumsum(P_constraint[BFS_Stands2[1:limit_position]])
+    Constraint_table <- data.table::data.table(Csum = Constraint, step1 = 0, step2 = 0)
+    Constraint_table[, step1 := c(Constraint_table$Csum > P_constraint_min_value)]
+    Constraint_table[, step2 := c(Constraint_table$Csum < P_constraint_max_value)]
+    f_position <-  tail(which(Constraint_table$step1 == TRUE &  Constraint_table$step2 == TRUE),1)
+      if(length(f_position) == 0){
+        Invalid <- 1
+        } else if (Areas[f_position] > Candidate_min_size){
+           limit_position <- f_position
+        } else {
+          return ()
+        }
+    }
 
   Stands_block <- BFS_Stands2[1:limit_position]
   Block_area <- sum(St_area[Stands_block])
@@ -180,6 +181,8 @@ simulate_projects_func <- function(
   Sample_seed
   ) {
   
+  # require(igraph)
+  
   St_area2 <- St_area
   St_objective2 <- St_objective
   P_constraint2 <- P_constraint
@@ -233,7 +236,7 @@ simulate_projects_func <- function(
   Stands_table <- data.table::data.table()
 
   for (b in 1:P_number) { # for b in P_number of projects
-
+    
     cat(paste0("\n------------------\nPlanning area #", b, '\n'))
     
     #####Eliminate unfeasible candidates
@@ -241,8 +244,7 @@ simulate_projects_func <- function(
       Vertices <- igraph::V(St_adj)
       
       if(!is.null(Sample_n)){
-        if(!is.null(Sample_seed))
-          set.seed(Sample_seed)
+        if(!is.null(Sample_seed)) set.seed(Sample_seed)
         Vertices <- sample(Vertices, size = Sample_n)
       }
       
@@ -325,8 +327,8 @@ simulate_projects_func <- function(
       Blocks_table <- rbind(Blocks_table, Blocks_table2)
   
   
-      cat(paste0("  total area: ", Block_area,
-                "; objective value: ", Block_Objective,
+      cat(paste0("  total area: ", round(Block_area, 2),
+                "; objective value: ", round(Block_Objective, 2),
                 "; constraint: ", Block_constraint,
                 "; project type: ",best$V4))
         
