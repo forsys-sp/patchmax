@@ -2,7 +2,7 @@
 #'
 #' @param Shapefile Input shapefile
 #' @param Adjdist Distance between adjacent stands
-#' @param St_id Numeric vector of integer stands IDs
+#' @param St_id Integer vector containing stands IDs
 #'
 #' @return g igraph
 #'
@@ -16,35 +16,40 @@
 calculate_adj <- function(
   Shapefile, 
   Adjdist, 
-  St_id
+  St_id,
+  method
   ) {
   
   calculate_adj_func(
     Shapefile = Shapefile, 
     Adjdist = Adjdist, 
-    St_id = St_id)
+    St_id = St_id,
+    method
+    )
 }
 
 
 calculate_adj_func <- function(
   Shapefile, 
   Adjdist, 
-  St_id
+  St_id,
+  method
   ) {
   
-  nb <- spdep::poly2nb(Shapefile)
-  adj0 <- spdep::nb2mat(nb, style = 'B', zero.policy = TRUE)
-  adj1 <- reshape2::melt(adj0) %>% filter(value == 1)
-  adj2 <- data.frame(A = St_id[adj1$Var1], B = St_id[adj1$Var2])
-  g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
-  
-  # shapefile <- sf::read_sf(Shapefile) %>% sf::st_make_valid
-  # shapefile = Shapefile
-  # shapefile2 <- sf::st_buffer(shapefile, dist = Adjdist)
-  # adj <- sf::st_overlaps(shapefile2, sparse = TRUE)
-  # adj1 <- data.frame(adj)
-  # adj2 <- data.frame(A = St_id[adj1$row.id], B = St_id[adj1$col.id])
-  # g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
+  if(method == 'nb'){
+    # neighbor approach
+    nb <- spdep::poly2nb(Shapefile)
+    adj0 <- spdep::nb2mat(nb, style = 'B', zero.policy = TRUE)
+    adj1 <- reshape2::melt(adj0) %>% dplyr::filter(value == 1)
+    adj2 <- data.frame(A = St_id[adj1$Var1], B = St_id[adj1$Var2])
+    g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
+  } else if(method == 'buffer') {
+    # buffer approach
+    shapefile2 <- Shapefile %>% sf::st_buffer(dist = Adjdist)
+    adj <- sf::st_overlaps(shapefile2, sparse = TRUE) %>% data.frame()
+    adj2 <- data.frame(A = St_id[adj$row.id], B = St_id[adj$col.id])
+    g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
+  }
   
   return(g)
 }

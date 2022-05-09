@@ -3,80 +3,129 @@
 #Install those packages previously to Patchmax:
 #igraph, data.table, sf, doParallel, parallel
 
+require(Patchmax, quietly = T, warn.conflicts = F)
 library(dplyr)
 library(sf)
 library(data.table)
 library(Patchmax)
-
-#Read shapefile to access the stand field values
-geom = read_sf("~/GitHub/forsys-data/shasta.geojson") %>% st_make_valid()
-adj_object <- calculate_adj(Shapefile = geom, Adjdist = 3, St_id = Shape$cell_id)
-# save(adj_object, file = '~/GitHub/forsys-data/test_adj.Rdata')
+library(ggplot2)
+library(reshape2)
 
 
-#Method 2
-#Generating igraph object from adjacency table (numbers in the adjacency table need to match the Stand_ID vector)
-#Adj_object <- read_adj(read.csv("N:/PatchMax/Input/Adjacency_table.csv"))
+# Example number 1 --------------
 
-#Simulating the projects
+geom = read_sf("data/test_forest.geojson")
+adj_object <- calculate_adj(Shapefile = geom, St_id = geom$stand_id, method = 'nb') # 20 seconds
+# adj_object <- calculate_adj(Shapefile = geom, Adjdist = 250, St_id = geom$stand_id, method = 'buffer') # 10 seconds
 
-geom = read_sf("~/GitHub/forsys-data/test_forest.geojson") %>% st_make_valid()
-# adj_object <- calculate_adj(Shapefile = geom, Adjdist = 3, St_id = Shape$cell_id)
 load('~/GitHub/forsys-data/test_adj.Rdata')
 args <- list()
-args$id <- geom$cell_id
+args$id <- geom$stand_id
 args$adj <- adj_object
 args$area <- geom$area_ha
 args$objective <- geom$priority2 # objective
+args$objective <- geom$priority1 * geom$priority2 # objective
 args$threshold <- geom$priority1 # threshold
+args$threshold_val <- 0.5
 
-geom = read_sf("~/GitHub/forsys-data/shasta.geojson") %>% st_make_valid()
-# adj_object <- calculate_adj(Shapefile = geom, Adjdist = 3, St_id = Shape$cell_id)
+generate_outputs <- simulate_projects(
+  St_id = args$id, # stand id vector
+  St_adj = args$adj, # igraph adjacency network
+  St_area = args$area, # stand area vector
+  St_objective = args$objective, # vector of stand values to maximize 
+  P_size = 25000, # project size target
+  P_size_slack = 0.01, # project size slack (%)
+  P_size_ceiling = 90000,
+  P_number = 4, # project count
+  St_threshold = args$threshold, # vector containing values applied to threshold
+  St_threshold_value = args$threshold_val, # minimum threshold
+  # P_constraint = args$constraint,
+  # P_constraint_max_value = 10000,
+  # P_constraint_min_value = 1000,
+  # Candidate_min_size = 40, 
+  Sample_n = 1000,
+  Sample_seed = 123
+)
+
+generate_outputs[[1]]
+generate_outputs[[2]]
+
+geom$Project <- generate_outputs[[2]]$Project[match(geom$stand_id, generate_outputs[[2]]$Stands)]
+plot(geom[,'Project'], border=rgb(0,0,0,.1))
+geom$DoTreat <- generate_outputs[[2]]$DoTreat[match(geom$stand_id, generate_outputs[[2]]$Stands)]
+plot(geom[,'DoTreat'], border=rgb(0,0,0,.1))
+
+
+# Example number 2 --------------
+
+geom = read_sf("data/stf_forest.geojson")
+
+adj_object <- calculate_adj(Shapefile = geom, St_id = geom$stand_id, method = 'nb') # FAILS
+adj_object <- calculate_adj(Shapefile = geom, Adjdist = 3, St_id = geom$stand_id, method = 'buffer') # 8 minutes
+# save(adj_object, file='~/GitHub/forsys-data/stf_adj.Rdata')
+
 load('~/GitHub/forsys-data/stf_adj.Rdata')
 args <- list()
 args$id <- geom$cell_id
 args$adj <- adj_object
 args$area <- geom$AREA_HA
 args$objective <- geom$HUIDW_SPM
-args$threshold <- geom$TVSUM_STND
 args$constraint <- geom$AREA_HA
+args$threshold <- geom$TVSUM_STND
+args$threshold_val <- 150
+args$p_number <- 4
+args$p_size <- 25000
 
-x <- 1000
-sample_sizes <- rep(10000, 1) 
-tmp <- sample_sizes %>% 
-  purrr::map(function(x){
-    print(x)
-    if(x == Inf) x = NULL
-    generate_outputs <- simulate_projects(
-      St_id = args$id, # stand id vector
-      St_adj = args$adj, # igraph adjacency network
-      St_area = args$area, # stand area vector
-      St_objective = args$objective, # vector of stand values to maximize 
-      P_size = 25000, # project size target 
-      P_size_slack = 0.05, # project size slack (%)
-      P_number = 5, # project count
-      St_threshold = args$threshold, # vector containing values applied to threshold
-      St_threshold_value = 150, # minimum threshold
-      # P_constraint = args$constraint,
-      # P_constraint_max_value = 10000,
-      # P_constraint_min_value = 1000,
-      Candidate_min_size = 40, 
-      Sample_n = x,
-      # Sample_seed = 123
-    )
-  })
+generate_outputs <- simulate_projects(
+  St_id = args$id, # stand id vector
+  St_adj = args$adj, # igraph adjacency network
+  St_area = args$area, # stand area vector
+  St_objective = args$objective, # vector of stand values to maximize 
+  P_size = args$p_size, # project size target
+  P_size_slack = 0.01, # project size slack (%)
+  # P_size_ceiling = 90000,
+  P_number = args$p_number, # project count
+  St_threshold = args$threshold, # vector containing values applied to threshold
+  St_threshold_value = args$threshold_val, # minimum threshold
+  # P_constraint = args$constraint,
+  # P_constraint_max_value = 10000,
+  # P_constraint_min_value = 1000,
+  # Candidate_min_size = 40, 
+  Sample_n = 1000,
+  Sample_seed = 123
+  )
 
-generate_outputs <- tmp[[1]]
+generate_outputs[[1]] %>% dplyr::mutate(Density = Objective/TotalArea * 1000)
+generate_outputs[[2]]
+
+geom$Project <- generate_outputs[[2]]$Project[match(geom$cell_id, generate_outputs[[2]]$Stands)]
+plot(geom[,'Project'], border=rgb(0,0,0,.1))
+geom$DoTreat <- generate_outputs[[2]]$DoTreat[match(geom$cell_id, generate_outputs[[2]]$Stands)]
+plot(geom[,'DoTreat'], border=rgb(0,0,0,.1))
+
+
+# summarize projects
 generate_outputs[[1]]
 generate_outputs[[2]] %>% group_by(Project) %>% summarize(Area = sum(Area))
-generate_outputs[[2]] %>% group_by(Project, DoTreat) %>% summarize(Area = sum(Area)) %>% tidyr::pivot_wider(id_cols = Project, names_from = DoTreat, values_from = Area)
-generate_outputs[[2]] %>% filter(DoTreat == 0) %>% left_join(geom, by=c('Stands'='cell_id'))
+proj_summary <- generate_outputs[[2]] %>% 
+  group_by(Project, DoTreat) %>% 
+  summarize(Area = sum(Area)) %>% 
+  tidyr::pivot_wider(id_cols = Project, names_from = DoTreat, values_from = Area) %>%
+  dplyr::rename(NoTrt = `0`, Trt = `1`) %>%
+  tidyr::replace_na(list(NoTrt = 0, Trt = 0)) %>%
+  mutate(PctTrt = round(Trt/(Trt+NoTrt) * 100))
+proj_summary
+generate_outputs[[2]] %>% filter(DoTreat == 0) %>% left_join(geom, by=c('Stands'='stand_id'))
 
+# map projects
+col <- colorRampPalette(colors=rev(c('steelblue1','yellow','orange','red','purple')))
+geom2 <- geom %>% left_join(generate_outputs[[2]] %>% dplyr::rename(stand_id = Stands))
+geom3 <- geom2 %>% group_by(Project) %>% summarize_if(is.numeric, sum)
+geom3 %>% left_join(proj_summary) %>%
+  ggplot() + geom_sf(aes(fill=Project)) + geom_sf_label(aes(label=Project))
 
-col <- colorRampPalette(colors=rev(c('steelblue1','yellow','orange','red')))
-geom2 <- geom %>% left_join(generate_outputs[[2]] %>% dplyr::rename(cell_id = Stands))
-plot(geom2[,'Project'], border=rgb(0,0,0,.1), pal = col(nrow(generate_outputs[[1]])))
-plot(geom2[,'priority2'], border=rgb(0,0,0,.1), pal = rev(col(10)))
+geom3 %>% st_write('~/Dropbox/!!projects/aa_10yr_uncertainity/fire_trt_interaction/projects.shp')
+
 
 
 # Graph showing linear increase in processing time between stands and node sampling size

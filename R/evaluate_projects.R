@@ -91,8 +91,8 @@ runbfs_func <- function(r) {
 
 #' Simulate landscape projects
 #'
-#' @param St_id Numeric vector of integer stands IDs.
-#' @param St_adj Adjacency input graph. From calculate_adj or read_adj functions
+#' @param St_id Numeric vector of integer stands IDs
+#' @param St_adj Adjacency input graph created through calculate_adj or read_adj functions. The graph vertices must be named.
 #' @param St_area Numeric vector of stands area
 #' @param St_objective Numeric vector of stands objective
 #' @param P_size Project size
@@ -129,8 +129,9 @@ simulate_projects <- function(
   St_area, 
   St_objective, 
   P_size, 
-  P_size_slack, 
-  P_number,
+  P_size_slack = 0, 
+  P_size_ceiling = Inf,
+  P_number = 1,
   St_threshold = NULL, 
   St_threshold_value = NULL,
   P_constraint = NULL, 
@@ -148,6 +149,7 @@ simulate_projects <- function(
     St_objective = St_objective, 
     P_size = P_size, 
     P_size_slack = P_size_slack, 
+    P_size_ceiling = P_size_ceiling,
     P_number = P_number,
     St_threshold = St_threshold, 
     St_threshold_value = St_threshold_value,
@@ -170,6 +172,7 @@ simulate_projects_func <- function(
   St_objective, 
   P_size, 
   P_size_slack, 
+  P_size_ceiling,
   P_number,
   St_threshold, 
   St_threshold_value, 
@@ -200,6 +203,12 @@ simulate_projects_func <- function(
 
   if(is.null(Candidate_min_size)){Candidate_min_size = 0.25*P_size}
 
+  stop_quietly <- function() {
+    opt <- options(show.error.messages = FALSE)
+    on.exit(options(opt))
+    stop()
+  }
+  
   no_cores <- parallel::detectCores() - 1
   cl <- parallel::makeCluster(getOption("cl.cores", no_cores))
   cat(paste0('Running PatchMax using ', no_cores, ' cores\n'))
@@ -235,9 +244,13 @@ simulate_projects_func <- function(
   Blocks_table <- data.table::data.table()
   Stands_table <- data.table::data.table()
 
-  for (b in 1:P_number) { # for b in P_number of projects
-    
-    cat(paste0("\n------------------\nPlanning area #", b, '\n'))
+  b = 1
+  s = 0
+  
+  # for (b in 1:P_number) { # for b in P_number of projects
+  while(b <= P_number & s <= P_size_ceiling){
+  
+    cat(paste0("\nProject #", b, '\n'))
     
     #####Eliminate unfeasible candidates
     if(b == 1){
@@ -290,6 +303,7 @@ simulate_projects_func <- function(
       Stands_ID <- St_id[Stands_block]
   
       Stands_area <- St_area2[Stands_block]
+      Total_block_area <- sum(Stands_area)
       Block_area <- sum(St_area[Stands_block])
   
       Stands_Objective <- St_objective2[Stands_block]
@@ -297,7 +311,7 @@ simulate_projects_func <- function(
   
       Stands_treat[which(St_area[Stands_treat] %in% 0)] <- 0
       Stands_treat[which(Stands_treat != 0)] <- 1
-  
+      
       Project_type <- best$V4
   
       Block_constraint <- NULL
@@ -320,14 +334,15 @@ simulate_projects_func <- function(
   
       Blocks_table2 <- data.table::data.table(Project = b, 
                                               Area = Block_area, 
+                                              TotalArea = Total_block_area,
                                               Objective = Block_Objective, 
                                               Constraint = Block_constraint,
                                               Type = Project_type)
       
       Blocks_table <- rbind(Blocks_table, Blocks_table2)
   
-  
-      cat(paste0("  total area: ", round(Block_area, 2),
+      cat(paste0("  treated area: ", round(Block_area, 2),
+                 "; total selected area:", round(Total_block_area, 2),
                 "; objective value: ", round(Block_Objective, 2),
                 "; constraint: ", Block_constraint,
                 "; project type: ",best$V4))
@@ -342,20 +357,22 @@ simulate_projects_func <- function(
       parallel::clusterExport(cl = cl, 
                               varlist = c("St_adj","feasible_positions"), 
                               envir = environment())
+      
+      b = b + 1
+      s = s + Block_area
+      
     } else {
       print(paste("There is no feasible projects"))
       break
     }
-  }
+    
+    if(b > P_number) message('\nProject count reached')
+    
+    if(s >= P_size_ceiling) message('\nProject size ceiling reached')
+    
+  } # end for loop
   
   parallel::stopCluster(cl = cl)
   results <- list(Blocks_table, Stands_table)
   return(results)
 }
-
-
-
-
-
-
-
