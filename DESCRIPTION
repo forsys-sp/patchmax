@@ -16,6 +16,7 @@ Depends: R (>= 4.0.3),
     igraph,
     data.table,
     sf,
+    spdep,
     doParallel,
     parallel
 License: GPL-3
