@@ -1,5 +1,4 @@
  Common R ignores
-*.Rproj
 *.Rproj.user
 *.Rhistory
 *.RData
