@@ -18,7 +18,8 @@ Depends: R (>= 4.0.3),
     sf,
     spdep,
     doParallel,
-    parallel
+    parallel,
+    pbapply
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
