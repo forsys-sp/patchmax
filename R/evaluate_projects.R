@@ -15,77 +15,81 @@ runbfs <- function(r) {
 
 runbfs_func <- function(r) {
 
-  BFS <- igraph::bfs(St_adj, root = r, unreachable = FALSE)
-  BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
-  BFS_Stands2 <- match(BFS_Stands, St_id)
-  Areas <- cumsum(St_area[BFS_Stands2])
-
-  Areas_table <- data.table::data.table(Csum = Areas, val = Areas)
-  setattr(Areas_table, "sorted", "Csum")
-  limit_position <- Areas_table[J(P_size), roll = "nearest", which = TRUE]
-  contad <- limit_position
-  Invalid <- NULL
-
-  if (Areas[limit_position] > P_size * (1 + P_size_slack)) {
-      return ()
-  }
-
-  # if constraint is found
-  if (!is.null(P_constraint)) {
-    Constraint <- cumsum(P_constraint[BFS_Stands2[1:limit_position]])
-    Constraint_table <- data.table::data.table(Csum = Constraint, step1 = 0, step2 = 0)
-    Constraint_table[, step1 := c(Constraint_table$Csum > P_constraint_min_value)]
-    Constraint_table[, step2 := c(Constraint_table$Csum < P_constraint_max_value)]
-    f_position <-  tail(which(Constraint_table$step1 == TRUE &  Constraint_table$step2 == TRUE),1)
-      if(length(f_position) == 0){
-        Invalid <- 1
-        } else if (Areas[f_position] > Candidate_min_size){
-           limit_position <- f_position
-        } else {
-          return ()
-        }
+  tryCatch({
+    BFS <- igraph::bfs(St_adj, root = r, unreachable = FALSE)
+    BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
+    BFS_Stands2 <- match(BFS_Stands, St_id)
+    Areas <- cumsum(St_area[BFS_Stands2])
+  
+    Areas_table <- data.table::data.table(Csum = Areas, val = Areas)
+    setattr(Areas_table, "sorted", "Csum")
+    limit_position <- Areas_table[J(P_size), roll = "nearest", which = TRUE]
+    contad <- limit_position
+    Invalid <- NULL
+  
+    if (Areas[limit_position] > P_size * (1 + P_size_slack)) {
+        return ()
     }
-
-  Stands_block <- BFS_Stands2[1:limit_position]
-  Block_area <- sum(St_area[Stands_block])
-  N_vertices <- length(Stands_block)
-#
-  if (is.null(P_constraint)) {
-    type_constraint <- 0
-    if (P_size * ((P_size_slack - 1)*-1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
-      Block_NetRevenue <- sum(St_objective[Stands_block])
-      return(list(r, N_vertices, Block_NetRevenue,type_constraint))
-    } else if (Block_area > Candidate_min_size) {
-    type_constraint <- 3
-      Block_NetRevenue <- sum(St_objective[Stands_block])
-      return(list(r, N_vertices, Block_NetRevenue,type_constraint))
-    } else {
-      return ()
-    }
-  }
-#
-  if (!is.null(Invalid)) {
-    if (Block_area > Candidate_min_size){
-    type_constraint <- 3
-      Block_NetRevenue <- sum(St_objective[Stands_block])
-      return(list(r, N_vertices, Block_NetRevenue,type_constraint))
-    } else {
-      return ()
-    }
-  }
-
+  
+    # if constraint is found
+    if (!is.null(P_constraint)) {
+      Constraint <- cumsum(P_constraint[BFS_Stands2[1:limit_position]])
+      Constraint_table <- data.table::data.table(Csum = Constraint, step1 = 0, step2 = 0)
+      Constraint_table[, step1 := c(Constraint_table$Csum > P_constraint_min_value)]
+      Constraint_table[, step2 := c(Constraint_table$Csum < P_constraint_max_value)]
+      f_position <-  tail(which(Constraint_table$step1 == TRUE &  Constraint_table$step2 == TRUE),1)
+        if(length(f_position) == 0){
+          Invalid <- 1
+          } else if (Areas[f_position] > Candidate_min_size){
+             limit_position <- f_position
+          } else {
+            return ()
+          }
+      }
+  
+    Stands_block <- BFS_Stands2[1:limit_position]
+    Block_area <- sum(St_area[Stands_block])
+    N_vertices <- length(Stands_block)
   #
-  if (!is.null(P_constraint)) {
-    if (P_size * ((P_size_slack - 1)*-1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
-     type_constraint <- 1
-      Block_NetRevenue <- sum(St_objective[Stands_block])
-      return(list(r, N_vertices, Block_NetRevenue,type_constraint))
-    } else {
-     type_constraint <- 2
-      Block_NetRevenue <- sum(St_objective[Stands_block])
-      return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+    if (is.null(P_constraint)) {
+      type_constraint <- 0
+      if (P_size * ((P_size_slack - 1)*-1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
+        Block_NetRevenue <- sum(St_objective[Stands_block])
+        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+      } else if (Block_area > Candidate_min_size) {
+      type_constraint <- 3
+        Block_NetRevenue <- sum(St_objective[Stands_block])
+        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+      } else {
+        return ()
+      }
     }
-  }
+  #
+    if (!is.null(Invalid)) {
+      if (Block_area > Candidate_min_size){
+      type_constraint <- 3
+        Block_NetRevenue <- sum(St_objective[Stands_block])
+        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+      } else {
+        return ()
+      }
+    }
+  
+    #
+    if (!is.null(P_constraint)) {
+      if (P_size * ((P_size_slack - 1)*-1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
+       type_constraint <- 1
+        Block_NetRevenue <- sum(St_objective[Stands_block])
+        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+      } else {
+       type_constraint <- 2
+        Block_NetRevenue <- sum(St_objective[Stands_block])
+        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+      }
+    }
+  }, error = function(e){
+    cat(r)
+  })
 
 }
 
@@ -260,7 +264,9 @@ simulate_projects_func <- function(
         if(!is.null(Sample_seed)) set.seed(Sample_seed)
         Vertices <- sample(Vertices, size = Sample_n)
       }
-      
+      # for(i in Vertices){
+      #   runbfs(i)
+      # }
       result <- pbapply::pblapply(Vertices, runbfs, cl=cl)
     } else {
       result <- pbapply::pblapply(feasible_positions, runbfs, cl=cl)

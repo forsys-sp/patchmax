@@ -16,9 +16,9 @@ library(reshape2)
 
 geom = read_sf("data/test_forest.geojson")
 adj_object <- calculate_adj(Shapefile = geom, St_id = geom$stand_id, method = 'nb') # 20 seconds
-# adj_object <- calculate_adj(Shapefile = geom, Adjdist = 250, St_id = geom$stand_id, method = 'buffer') # 10 seconds
+adj_object <- calculate_adj(Shapefile = geom, Adjdist = 250, St_id = geom$stand_id, method = 'buffer') # 10 seconds
 
-load('~/GitHub/forsys-data/test_adj.Rdata')
+# load('~/GitHub/forsys-data/test_adj.Rdata')
 args <- list()
 args$id <- geom$stand_id
 args$adj <- adj_object
