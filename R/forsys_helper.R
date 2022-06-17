@@ -11,7 +11,7 @@
 #' 
 forsys_helper_prep_threshold <- function(stand_threshold){
   if(!is.null(stand_threshold)){
-    message('PatchMax assumes project stand threshold operator is ">"')
+    message('PatchMax assumes project stand threshold operator is ">="')
     x <- stand_threshold %>%
       stringr::str_split('>=|<=|>|<|==', simplify = T)
     if(length(x) != 2){
