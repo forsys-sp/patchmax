@@ -188,3 +188,7 @@ write.csv(generate_outputs[[2]], file = "N:/Patchmax/Output/ExStands.csv")
 
 
 
+
+
+stands <- st_read('~/GitHub/forsys-data/YSS_LandMgtUnits_v16_20210924/YSS_LandMgtUnits_v16_20210924.shp') 
+adj = Patchmax::calculate_adj(Shapefile = stands, St_id = stands$LMU_ID, method = 'buffer', Adjdist = 1)

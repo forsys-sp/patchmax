@@ -133,7 +133,7 @@ simulate_projects <- function(
   St_area, 
   St_objective, 
   P_size, 
-  P_size_slack = 0, 
+  P_size_slack = 0.05, 
   P_size_ceiling = Inf,
   P_number = 1,
   St_threshold = NULL, 

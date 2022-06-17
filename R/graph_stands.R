@@ -15,9 +15,9 @@
 #'
 calculate_adj <- function(
   Shapefile, 
-  Adjdist, 
+  Adjdist = 1, 
   St_id,
-  method
+  method = 'buffer'
   ) {
   
   calculate_adj_func(
