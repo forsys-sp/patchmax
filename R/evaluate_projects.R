@@ -98,6 +98,7 @@ runbfs_func <- function(r) {
 #' @param St_adj Adjacency input graph created through calculate_adj or read_adj functions. The graph vertices must be named.
 #' @param St_area Numeric vector of stands area
 #' @param St_objective Numeric vector of stands objective
+#' @param St_seed Numeric vector of stands IDs seeds. If NULL, then stand seed is not applied.
 #' @param P_size Project size
 #' @param P_size_slack Project size slack, between 0 and 1, Where 0 means no deviation.
 #' @param P_number Number of projects to simulate
@@ -130,7 +131,8 @@ simulate_projects <- function(
   St_id, 
   St_adj, 
   St_area, 
-  St_objective, 
+  St_objective,
+  St_seed = NULL,
   P_size, 
   P_size_slack = 0.05, 
   P_size_ceiling = Inf,
@@ -140,16 +142,15 @@ simulate_projects <- function(
   P_constraint = NULL, 
   P_constraint_max_value = NULL, 
   P_constraint_min_value = NULL, 
-  Candidate_min_size = NULL,
-  Sample_n = NULL,
-  Sample_seed = NULL
+  Candidate_min_size = NULL
 ){
   
   simulate_projects_func(
     St_id = St_id, 
     St_adj = St_adj, 
-    St_area = St_area, 
+    St_area = St_area,
     St_objective = St_objective, 
+    St_seed = St_seed,
     P_size = P_size, 
     P_size_slack = P_size_slack, 
     P_size_ceiling = P_size_ceiling,
@@ -159,10 +160,8 @@ simulate_projects <- function(
     P_constraint = P_constraint, 
     P_constraint_max_value = P_constraint_max_value, 
     P_constraint_min_value = P_constraint_min_value, 
-    Candidate_min_size = Candidate_min_size,
-    Sample_n = Sample_n,
-    Sample_seed = Sample_seed
-  )
+    Candidate_min_size = Candidate_min_size
+    )
   
 }
 
@@ -173,6 +172,7 @@ simulate_projects_func <- function(
   St_adj, 
   St_area, 
   St_objective, 
+  St_seed,
   P_size, 
   P_size_slack, 
   P_size_ceiling,
@@ -182,9 +182,7 @@ simulate_projects_func <- function(
   P_constraint, 
   P_constraint_max_value, 
   P_constraint_min_value, 
-  Candidate_min_size,
-  Sample_n,
-  Sample_seed
+  Candidate_min_size
 ) {
   
   # require(igraph)
@@ -194,6 +192,8 @@ simulate_projects_func <- function(
   P_constraint2 <- P_constraint
   
   if(is.null(P_size_slack)){P_size_slack = 0}
+  
+  if(is.null(St_seed)){St_seed = St_id}
   
   if (!is.null(St_threshold_value)) {
     St_area[which(St_threshold < St_threshold_value)] <- 0
@@ -250,42 +250,33 @@ simulate_projects_func <- function(
   b = 1
   s = 0
   
-  # for (b in 1:P_number) { # for b in P_number of projects
+  
   while(b <= P_number & s <= P_size_ceiling){
     
     cat(paste0("\nProject #", b, '\n'))
     
-    #####Eliminate unfeasible candidates
+    
     if(b == 1){
       Vertices <- igraph::V(St_adj)
-      
-      if(!is.null(Sample_n)){
-        if(!is.null(Sample_seed)) set.seed(Sample_seed)
-        Vertices <- sample(Vertices, size = Sample_n)
-      }
-      # for(i in Vertices){
-      #   runbfs(i)
-      # }
-      result <- pbapply::pblapply(Vertices, runbfs, cl=cl)
+      Seeds <- match(St_seed, as.numeric(V(St_adj)$name))
+      Seeds <- Seeds[!is.na(Seeds)]
+     
+      result <- pbapply::pblapply(Seeds, runbfs, cl=cl)
+    
     } else {
       result <- pbapply::pblapply(feasible_positions, runbfs, cl=cl)
     }
-    #####Eliminate seeds
-    #result <- parallel::parLapply(cl, sample(1:length(Vertices), size = length(as.numeric(Vertices))/2), runbfs)
-    #####
+    
+    
     if (!is.null(unlist(result))){
       
       parallel::clusterExport(cl = cl, varlist = c("result"), envir = environment())
       
       output <- data.table::as.data.table(matrix(unlist(result), ncol = 4, byrow = TRUE))
       
-      
-      #####Eliminate unfeasible candidates
-      if(b == 1){
-        feasible_seeds <- output$V1
-        feasible_vertices <- V(St_adj)[feasible_seeds]
-      }
-      ##########
+      feasible_seeds <- output$V1
+      feasible_vertices <- V(St_adj)[feasible_seeds]
+
       
       output2 <- subset(output, V4 %in% c(0,1,2))
       output3 <- subset(output, V4 %in% c(3))
@@ -357,8 +348,7 @@ simulate_projects_func <- function(
       
       #####Eliminate unfeasible candidates
       feasible_vertices2 <- feasible_vertices[!feasible_vertices %in% BFS$order[1:best$V2]]
-      feasible_positions <- which(V(St_adj) %in% feasible_vertices2)
-      ##########
+      feasible_positions <- match(as.numeric(feasible_vertices2$name), as.numeric(V(St_adj)$name))
       
       parallel::clusterExport(cl = cl, 
                               varlist = c("St_adj","feasible_positions"), 
