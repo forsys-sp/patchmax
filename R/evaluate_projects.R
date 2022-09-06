@@ -8,10 +8,8 @@ runbfs <- function(r) {
   runbfs_func(r)
 }
 
-
 #' Internal Evaluate BFS
 #' @param r Stand root
-
 
 runbfs_func <- function(r) {
 
