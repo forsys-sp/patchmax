@@ -9,9 +9,9 @@ runbfs <- function(r) {
 }
 
 
-#' Intenral Evaluate BFS
+#' Internal Evaluate BFS
 #' @param r Stand root
-#' 
+
 
 runbfs_func <- function(r) {
 
