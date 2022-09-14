@@ -10,7 +10,7 @@ runbfs <- function(r) {
 
 #' Internal Evaluate BFS
 #' @param r Stand root
-
+#' @keywords internal
 
 runbfs_func <- function(r) {
   
@@ -177,7 +177,7 @@ simulate_projects <- function(
 }
 
 #' Internal simulate landscape projects function
-
+#' @keywords internal
 simulate_projects_func <- function(
   St_id, 
   St_adj, 

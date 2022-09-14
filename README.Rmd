@@ -16,4 +16,6 @@ w = 6
 ow = "600"
 ```
 
+<img src="man/figures/forsys_icon.png" align="right" style="height:90px!important; position:absolute; top:10px; right:10px" />
+
 ## Scenario planning for restoration and fuel treatments

@@ -3,7 +3,7 @@
 #' Convert Forsys threshold into format expected by Patchmax
 #'
 #' @param stand_threshold 
-#'
+#' @keywords internal
 #' @return
 #' @export
 #'
