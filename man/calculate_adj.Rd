@@ -4,14 +4,14 @@
 \alias{calculate_adj}
 \title{Calculate stands adjacency from input shapefile}
 \usage{
-calculate_adj(Shapefile, Adjdist, St_id)
+calculate_adj(Shapefile, Adjdist = 1, St_id, method = "buffer")
 }
 \arguments{
 \item{Shapefile}{Input shapefile}
 
 \item{Adjdist}{Distance between adjacent stands}
 
-\item{St_id}{Numeric vector of integer stands IDs}
+\item{St_id}{Integer vector containing stands IDs}
 }
 \value{
 g igraph

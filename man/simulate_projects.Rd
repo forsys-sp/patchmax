@@ -9,11 +9,15 @@ simulate_projects(
   St_adj,
   St_area,
   St_objective,
+  St_seed = NULL,
   P_size,
-  P_size_slack,
-  P_number,
+  P_size_slack = 0.05,
+  P_size_ceiling = Inf,
+  P_number = 1,
   St_threshold = NULL,
   St_threshold_value = NULL,
+  St_distances = NULL,
+  SDW = NULL,
   P_constraint = NULL,
   P_constraint_max_value = NULL,
   P_constraint_min_value = NULL,
@@ -21,13 +25,15 @@ simulate_projects(
 )
 }
 \arguments{
-\item{St_id}{Numeric vector of integer stands IDs.}
+\item{St_id}{Numeric vector of integer stands IDs}
 
-\item{St_adj}{Adjacency input graph. From calculate_adj or read_adj functions}
+\item{St_adj}{Adjacency input graph created through calculate_adj or read_adj functions. The graph vertices must be named.}
 
 \item{St_area}{Numeric vector of stands area}
 
 \item{St_objective}{Numeric vector of stands objective}
+
+\item{St_seed}{Numeric vector of stands IDs seeds. If NULL, then stand seed is not applied.}
 
 \item{P_size}{Project size}
 
@@ -39,6 +45,10 @@ simulate_projects(
 
 \item{St_threshold_value}{Stands threshold lower value.}
 
+\item{St_distances}{Stand distance table. Coupled with DW parameter. If NULL, then stand distance weight function is not applied.}
+
+\item{SDW}{Stand distance weight parameter. If NULL, then the value = 1 is used by default.}
+
 \item{P_constraint}{Numeric vector of stands value for the project constraint.Coupled with P_constraint_max_value and P_constraint_min_value. If NULL, then project constraint is not applied.}
 
 \item{P_constraint_max_value}{Project constraint upper value.}
@@ -46,9 +56,6 @@ simulate_projects(
 \item{P_constraint_min_value}{Project constraint lower value.}
 
 \item{Candidate_min_size}{Minimal size for project coded with types 2 and 3. If NULL, then the value = ‘0.25*P_size’ is used by default. Project type codes interpret if the project is valid (i.e. if P_size apply), constrained (i.e. if P_constraint apply) or none of them. Where type 0 are valid non-constrained projects (i.e. only P_size apply), type 1 are valid constrained projects (i.e. P_size and P_constraint apply), type 2 are invalid constrained projects (i.e. P_size does not apply but P_constraint apply) and type 3 are non-optimized projects that can be invalid and/or non-constrained (i.e. P_size and/or P_constraint do not apply).}
-}
-\value{
-
 }
 \description{
 Simulate landscape projects
