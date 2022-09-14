@@ -18,8 +18,14 @@ runbfs_func <- function(r) {
     BFS <- igraph::bfs(St_adj, root = r, unreachable = FALSE)
     BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
     BFS_Stands2 <- match(BFS_Stands, St_id)
-    Areas <- cumsum(St_area[BFS_Stands2])
     
+    if(!is.null(St_distances) & length(BFS_Stands2) > 1){
+      SDW_objective <- St_distances[BFS_Stands2,BFS_Stands2[1]]
+      SDW_objective_sorted <- c(SDW_objective[1],sort(SDW_objective[2:length(SDW_objective)], decreasing = TRUE))
+      BFS_Stands2 <- as.numeric(names(SDW_objective_sorted))
+    }
+    
+    Areas <- cumsum(St_area[BFS_Stands2])
     Areas_table <- data.table::data.table(Csum = Areas, val = Areas)
     setattr(Areas_table, "sorted", "Csum")
     limit_position <- Areas_table[J(P_size), roll = "nearest", which = TRUE]
@@ -30,7 +36,6 @@ runbfs_func <- function(r) {
       return ()
     }
     
-    # if constraint is found
     if (!is.null(P_constraint)) {
       Constraint <- cumsum(P_constraint[BFS_Stands2[1:limit_position]])
       Constraint_table <- data.table::data.table(Csum = Constraint, step1 = 0, step2 = 0)
@@ -49,26 +54,29 @@ runbfs_func <- function(r) {
     Stands_block <- BFS_Stands2[1:limit_position]
     Block_area <- sum(St_area[Stands_block])
     N_vertices <- length(Stands_block)
-    #
+    
+    if(!is.null(St_distances) & length(Stands_block) > 1){
+      Block_Objective <- sum(SDW_objective_sorted[1:limit_position])
+    } else {
+      Block_Objective <- sum(St_objective[Stands_block])
+    }
+    
     if (is.null(P_constraint)) {
       type_constraint <- 0
       if (P_size * ((P_size_slack - 1)*-1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
-        Block_NetRevenue <- sum(St_objective[Stands_block])
-        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+        return(list(r, N_vertices, Block_Objective,type_constraint))
       } else if (Block_area > Candidate_min_size) {
         type_constraint <- 3
-        Block_NetRevenue <- sum(St_objective[Stands_block])
-        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+        return(list(r, N_vertices, Block_Objective,type_constraint))
       } else {
         return ()
       }
     }
-    #
+    
     if (!is.null(Invalid)) {
       if (Block_area > Candidate_min_size){
         type_constraint <- 3
-        Block_NetRevenue <- sum(St_objective[Stands_block])
-        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+        return(list(r, N_vertices, Block_Objective,type_constraint))
       } else {
         return ()
       }
@@ -78,12 +86,10 @@ runbfs_func <- function(r) {
     if (!is.null(P_constraint)) {
       if (P_size * ((P_size_slack - 1)*-1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
         type_constraint <- 1
-        Block_NetRevenue <- sum(St_objective[Stands_block])
-        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+        return(list(r, N_vertices, Block_Objective,type_constraint))
       } else {
         type_constraint <- 2
-        Block_NetRevenue <- sum(St_objective[Stands_block])
-        return(list(r, N_vertices, Block_NetRevenue,type_constraint))
+        return(list(r, N_vertices, Block_Objective,type_constraint))
       }
     }
   }, error = function(e){
@@ -93,7 +99,6 @@ runbfs_func <- function(r) {
 }
 
 #' Simulate landscape projects
-#'
 #' @param St_id Numeric vector of integer stands IDs
 #' @param St_adj Adjacency input graph created through calculate_adj or read_adj functions. The graph vertices must be named.
 #' @param St_area Numeric vector of stands area
@@ -104,6 +109,8 @@ runbfs_func <- function(r) {
 #' @param P_number Number of projects to simulate
 #' @param St_threshold Numeric vector of stands threshold value.Coupled with St_threshold_value. If NULL, then stand threshold is not applied.
 #' @param St_threshold_value Stands threshold lower value.
+#' @param St_distances Stand distance table. Coupled with DW parameter. If NULL, then stand distance weight function is not applied.
+#' @param SDW Stand distance weight parameter. If NULL, then the value = 1 is used by default.
 #' @param P_constraint Numeric vector of stands value for the project constraint.Coupled with P_constraint_max_value and P_constraint_min_value. If NULL, then project constraint is not applied.
 #' @param P_constraint_max_value Project constraint upper value.
 #' @param P_constraint_min_value Project constraint lower value.
@@ -139,6 +146,8 @@ simulate_projects <- function(
   P_number = 1,
   St_threshold = NULL, 
   St_threshold_value = NULL,
+  St_distances = NULL,
+  SDW = NULL,
   P_constraint = NULL, 
   P_constraint_max_value = NULL, 
   P_constraint_min_value = NULL, 
@@ -157,6 +166,8 @@ simulate_projects <- function(
     P_number = P_number,
     St_threshold = St_threshold, 
     St_threshold_value = St_threshold_value,
+    St_distances = St_distances,
+    SDW = SDW,
     P_constraint = P_constraint, 
     P_constraint_max_value = P_constraint_max_value, 
     P_constraint_min_value = P_constraint_min_value, 
@@ -179,6 +190,8 @@ simulate_projects_func <- function(
   P_number,
   St_threshold, 
   St_threshold_value, 
+  St_distances,
+  SDW,
   P_constraint, 
   P_constraint_max_value, 
   P_constraint_min_value, 
@@ -205,6 +218,14 @@ simulate_projects_func <- function(
   }
   
   if(is.null(Candidate_min_size)){Candidate_min_size = 0.25*P_size}
+  
+  if(!is.null(St_distances)){
+    if(is.null(IDW)){
+      SDW <- 1
+    }
+    St_distances <- St_objective + (1-St_distances)*sDW
+    diag(St_distances) <- 0
+  }
   
   stop_quietly <- function() {
     opt <- options(show.error.messages = FALSE)
@@ -233,6 +254,7 @@ simulate_projects_func <- function(
       "St_threshold",
       "St_threshold_value",
       "P_constraint",
+      "St_distances",
       "P_constraint_max_value",
       "P_constraint_min_value",
       "Candidate_min_size",
@@ -257,20 +279,15 @@ simulate_projects_func <- function(
     
     
     if(b == 1){
-      Vertices <- igraph::V(St_adj)
       Seeds <- match(St_seed, as.numeric(V(St_adj)$name))
       Seeds <- Seeds[!is.na(Seeds)]
-     
       result <- pbapply::pblapply(Seeds, runbfs, cl=cl)
-    
     } else {
       result <- pbapply::pblapply(feasible_positions, runbfs, cl=cl)
     }
     
     
     if (!is.null(unlist(result))){
-      
-      parallel::clusterExport(cl = cl, varlist = c("result"), envir = environment())
       
       output <- data.table::as.data.table(matrix(unlist(result), ncol = 4, byrow = TRUE))
       
@@ -294,11 +311,17 @@ simulate_projects_func <- function(
       
       BFS_Stands2 <- match(BFS_Stands, St_id)
       
+      if(!is.null(St_distances)){
+        SDW_objective <- St_distances[BFS_Stands2,BFS_Stands2[1]]
+        SDW_objective_sorted <- c(SDW_objective[1],sort(SDW_objective[2:length(IDW_objective)], decreasing = TRUE))
+        BFS_Stands2 <- as.numeric(names(SDW_objective_sorted))
+      }
+      
       Stands_block <- BFS_Stands2[1:best$V2]
       Stands_treat <- BFS_Stands2[1:best$V2]
       
       Stands_ID <- St_id[Stands_block]
-      
+      Positions_BFS <- match(Stands_ID,BFS_Stands)
       Stands_area <- St_area2[Stands_block]
       Total_block_area <- sum(Stands_area)
       Block_area <- sum(St_area[Stands_block])
@@ -347,7 +370,7 @@ simulate_projects_func <- function(
       St_adj <- igraph::delete.vertices(St_adj, BFS$order[1:best$V2])
       
       #####Eliminate unfeasible candidates
-      feasible_vertices2 <- feasible_vertices[!feasible_vertices %in% BFS$order[1:best$V2]]
+      feasible_vertices2 <- feasible_vertices[!feasible_vertices %in% BFS$order[Positions_BFS]]
       feasible_positions <- match(as.numeric(feasible_vertices2$name), as.numeric(V(St_adj)$name))
       
       parallel::clusterExport(cl = cl, 
