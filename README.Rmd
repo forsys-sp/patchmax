@@ -3,19 +3,6 @@ title: "Pathmax"
 output: github_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
-<!--- README.md is generated from README.Rmd. Please edit that file -->
-
-```{r, include = FALSE}
-devtools::load_all()
-h = 6
-w = 6
-ow = "600"
-```
-
-<img src="man/figures/forsys_icon.png" align="right" style="height:90px!important; position:absolute; top:10px; right:10px" />
 
 ## Scenario planning for restoration and fuel treatments
