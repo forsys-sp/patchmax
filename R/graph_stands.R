@@ -76,3 +76,27 @@ read_adj_func <- function(Adjlist) {
   g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
   return(g)
 }
+
+#' Calculate stands distance from input shapefile
+#'
+#' @param Shapefile Input shapefile
+#'
+#' @export
+#'
+#' @importFrom sf st_coordinates
+#' @importFrom sf st_centroid
+#'
+calculate_dist <- function(Shapefile) {
+  fun1(Shapefile)
+}
+
+fun1 <- function(Shapefile) {
+  Shapefile <- Shape
+  Distance_table <- as.matrix(dist(data.frame(sf::st_coordinates(sf::st_centroid(Shapefile))), diag=T, upper=T))
+  mode(Distance_table) <- "integer"
+  Min <- min(Distance_table)
+  Max <- max(Distance_table)
+  Distance_table[] <- vapply(Distance_table, function(x){(x- Min)/(Max-Min)}, numeric(1))
+  return(Distance_table)
+}
+
