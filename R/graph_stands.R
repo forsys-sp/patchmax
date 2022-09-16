@@ -87,16 +87,15 @@ read_adj_func <- function(Adjlist) {
 #' @importFrom sf st_centroid
 #'
 calculate_dist <- function(Shapefile) {
-  fun1(Shapefile)
+  calculate_dist_func(Shapefile)
 }
 
-fun1 <- function(Shapefile) {
+calculate_dist_func <- function(Shapefile) {
   Shapefile <- Shape
   Distance_table <- as.matrix(dist(data.frame(sf::st_coordinates(sf::st_centroid(Shapefile))), diag=T, upper=T))
   mode(Distance_table) <- "integer"
-  Min <- min(Distance_table)
   Max <- max(Distance_table)
-  Distance_table[] <- vapply(Distance_table, function(x){(x- Min)/(Max-Min)}, numeric(1))
+  Distance_table[] <- vapply(Distance_table, function(x){100*x/Max}, numeric(1))
   return(Distance_table)
 }
 
