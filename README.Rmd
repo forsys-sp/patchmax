@@ -44,9 +44,6 @@ Stand treatment units are represented as polygons in a spatial vector format. Ea
 library(Patchmax)
 ```
 
-```{r, fig.height=3}
-help(calculate_adj)
-```
 
 ## Studies
 Belavenutti, Pedro, Alan A. Ager, Michelle A. Day, and Woodam Chung. 2022. Designing forest restoration projects to optimize the application of broadcast burning. Ecological Economics.

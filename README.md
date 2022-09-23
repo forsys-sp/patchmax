@@ -42,7 +42,7 @@ Stand treatment units are represented as polygons in a spatial vector
 format. Each polygon represents a different treatment unit.
 
 ``` r
-plot(help(calculate_adj))
+library(Patchmax)
 ```
 
 ## Studies
