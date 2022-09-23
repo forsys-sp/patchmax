@@ -1,6 +1,5 @@
 ---
-title: "Patchmax a computational module designed to explore spatially
-explicit landscape treatment projects"
+title: "Patchmax"
 author: "Pedro Belavenutti"
 output: github_document
 ---

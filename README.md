@@ -1,5 +1,4 @@
-Patchmax a computational module designed to explore spatially explicit
-landscape treatment projects
+Patchmax
 ================
 Pedro Belavenutti
 
