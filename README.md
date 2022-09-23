@@ -1,6 +1,9 @@
-<!--- README.md is generated from README.Rmd. Please edit that file -->
+Patchmax a computational module designed to explore spatially explicit
+landscape treatment projects
+================
+Pedro Belavenutti
 
-## Belavenutti, Pedro, Alan A. Ager, Michelle A. Day, and Woodam Chung. 2022. Designing forest restoration projects to optimize the application of broadcast burning. Ecological Economics.
+<!--- README.md is generated from README.Rmd. Please edit that file -->
 
 <img src="man/figures/forsys_icon.png" align="right" style="height:90px!important; position:absolute; top:10px; right:10px" />
 
@@ -15,12 +18,32 @@ originally designed for hazardous fuel treatment planning in forested
 systems, it can be applied to fiber production, habitat restoration, and
 other resource management problems. Patchmax utilizes breadth-first
 search in the igraph package to sequence stands within the projects. To
-improve efficiency, the application implements binary searches with
-data.table package while running on a parallel computing platform with
-doParallel package. Dependences: R (&gt;= 4.0.3) and packages (igraph,
-data.table, sf, doParallel, parallel)
+improve efficiency, the application employs graph theory algorithms
+combined with binary searches while running on a parallel computing
+platform.
+
+Dependences: R (\>= 4.0.3) and packages (igraph, data.table, sf,
+doParallel, parallel, spdep, pbapply)
 
 ## Installation
+
+The latest official version of the Patchmax package can be installed
+from GitHub using the following code after we provide your personal
+access token.
+
+``` r
+if (!require(remotes)) install.packages("remotes")
+remotes::install_github("forsys-sp/patchmax", auth_token = 'your_token_here')
+```
+
+## Usage
+
+Stand treatment units are represented as polygons in a spatial vector
+format. Each polygon represents a different treatment unit.
+
+``` r
+plot(help(calculate_adj))
+```
 
 ## Studies
 
