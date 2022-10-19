@@ -91,7 +91,6 @@ calculate_dist <- function(Shapefile) {
 }
 
 calculate_dist_func <- function(Shapefile) {
-  Shapefile <- Shape
   Distance_table <- as.matrix(dist(data.frame(sf::st_coordinates(sf::st_centroid(Shapefile))), diag=T, upper=T))
   mode(Distance_table) <- "integer"
   Max <- max(Distance_table)
