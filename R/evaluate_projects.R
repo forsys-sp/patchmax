@@ -220,10 +220,10 @@ simulate_projects_func <- function(
   if(is.null(Candidate_min_size)){Candidate_min_size = 0.25*P_size}
   
   if(!is.null(St_distances)){
-    if(is.null(IDW)){
+    if(is.null(SDW)){
       SDW <- 1
     }
-    St_distances <- St_objective + (1-St_distances)*sDW
+    St_distances <- St_objective + (1-St_distances)*SDW
     diag(St_distances) <- 0
   }
   
@@ -313,7 +313,7 @@ simulate_projects_func <- function(
       
       if(!is.null(St_distances)){
         SDW_objective <- St_distances[BFS_Stands2,BFS_Stands2[1]]
-        SDW_objective_sorted <- c(SDW_objective[1],sort(SDW_objective[2:length(IDW_objective)], decreasing = TRUE))
+        SDW_objective_sorted <- c(SDW_objective[1],sort(SDW_objective[2:length(SDW_objective)], decreasing = TRUE))
         BFS_Stands2 <- as.numeric(names(SDW_objective_sorted))
       }
       
