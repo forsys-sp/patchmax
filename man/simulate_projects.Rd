@@ -19,8 +19,8 @@ simulate_projects(
   St_distances = NULL,
   SDW = NULL,
   P_constraint = NULL,
-  P_constraint_max_value = NULL,
-  P_constraint_min_value = NULL,
+  P_constraint_max_value = Inf,
+  P_constraint_min_value = -Inf,
   Candidate_min_size = NULL
 )
 }
