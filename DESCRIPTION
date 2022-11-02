@@ -1,7 +1,7 @@
 Package: Patchmax
 Type: Package
 Title: Patchmax
-Version: 0.1.0
+Version: 0.1.1
 Author: Pedro Belavenutti
 Maintainer: Pedro Belavenutti <inv.florestal@gmail.com>
 Description: Patchmax is a program used to help design and explore
