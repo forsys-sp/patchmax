@@ -3,48 +3,75 @@
 #Install those packages previously to Patchmax:
 #igraph, data.table, sf, doParallel, parallel
 
-require(Patchmax, quietly = T, warn.conflicts = F)
+library(Patchmax)
 library(dplyr)
 library(sf)
 library(data.table)
 library(Patchmax)
 library(ggplot2)
 library(reshape2)
+library(forsys)
+library(RANN)
+library(proxy)
+library(cppRouting)
 
+data("test_forest")
+stands <- test_forest %>% st_drop_geometry() 
 
-# Example number 1 --------------
+kn = 1000
 
-geom = read_sf("data/test_forest.geojson")
-adj_object <- calculate_adj(Shapefile = geom, St_id = geom$stand_id, method = 'nb') # 20 seconds
-adj_object <- calculate_adj(Shapefile = geom, Adjdist = 250, St_id = geom$stand_id, method = 'buffer') # 10 seconds
+# extract polygon centroids
+xy <- st_centroid(test_forest) %>% st_coordinates() %>% as.data.frame()
+
+adj = Patchmax::calculate_adj(
+  Shapefile = test_forest, 
+  St_id = test_forest$stand_id,
+  calc_dst = TRUE
+  )
+V(adj)$name <- as_ids(V(adj))
+
+# build nearest neighbor spatial index
+# dist_kdtree <- nn2(data = xy, query = xy, k = kn)
+# dist = Patchmax::calculate_dist(test_forest)
+
+geom <- test_forest
 
 # load('~/GitHub/forsys-data/test_adj.Rdata')
 args <- list()
 args$id <- geom$stand_id
-args$adj <- adj_object
+args$adj <- adj
+args$dist <- TRUE
 args$area <- geom$area_ha
-args$objective <- geom$priority2 # objective
-args$objective <- geom$priority1 * geom$priority2 # objective
+args$objective <- geom$priority4 # objective
+args$constraint <- geom$priority3
 args$threshold <- geom$priority1 # threshold
 args$threshold_val <- 0.5
+args$SDW <- 3
+args$candidate_min_size <- NULL
+
+patchmax_sample_n = 100
+
+if(!is.null(patchmax_sample_n))
+  args$st_seed <- sample(geom$stand_id, patchmax_sample_n, F)
 
 generate_outputs <- simulate_projects(
+  # St_seed = args$st_seed,
   St_id = args$id, # stand id vector
   St_adj = args$adj, # igraph adjacency network
   St_area = args$area, # stand area vector
   St_objective = args$objective, # vector of stand values to maximize 
-  P_size = 25000, # project size target
+  P_size = 100000, # project size target
   P_size_slack = 0.01, # project size slack (%)
-  P_size_ceiling = 90000,
-  P_number = 4, # project count
-  St_threshold = args$threshold, # vector containing values applied to threshold
-  St_threshold_value = args$threshold_val, # minimum threshold
+  # P_size_ceiling = 90000,
+  P_number = 3, # project count
+  # St_threshold = args$threshold, # vector containing values applied to threshold
+  # St_threshold_value = args$threshold_val, # minimum threshold
   # P_constraint = args$constraint,
-  # P_constraint_max_value = 10000,
-  # P_constraint_min_value = 1000,
-  # Candidate_min_size = 40, 
-  Sample_n = 1000,
-  Sample_seed = 123
+  # P_constraint_max_value = 100,
+  # P_constraint_min_value = 50,
+  Candidate_min_size = args$candidate_min_size,
+  St_distance = args$dist,
+  SDW = args$SDW 
 )
 
 generate_outputs[[1]]
