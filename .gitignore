@@ -1,4 +1,4 @@
- Common R ignores
+# Common R ignores
 *.Rproj.user
 *.Rhistory
 *.RData
@@ -17,3 +17,4 @@
 .Rproj.user
 
 /data/*
+/misc/mov/*

@@ -96,7 +96,7 @@ patchmax_generator <- R6Class(
     
     update = function(){
       
-      message(glue::glue('\nUpdating costs using sdw = {private$..param_sdw} and epw = {private$..param_epw}'))
+      #message(glue::glue('\nUpdating costs using sdw = {private$..param_sdw} and epw = {private$..param_epw}'))
       
       private$..cpp_graph <- build_graph_func(
         net = private$..net, 
@@ -131,14 +131,14 @@ patchmax_generator <- R6Class(
       out <- dplyr::left_join(out, obj_dat, by='node')
       private$..proj_mem <- out
       
-      message(glue::glue('Project built from: {private$..best_mem}, area: {round(sum(private$..proj_mem$area),3)}, score: {round(sum(private$..proj_mem$objective),3)}'))
+      message(glue::glue('Project stats: start {private$..best_mem}, area {round(sum(private$..proj_mem$area),3)}, score {round(sum(private$..proj_mem$objective),3)}'))
       
       return(invisible(self))
     },
     
     # SEARCH METHOD --------------------------------------------------------
     
-    search = function(sample_frac=0.1, return_all=FALSE){
+    search = function(sample_frac=0.1, return_all=FALSE, show_progress=FALSE){
       
       self$update()
       
@@ -148,9 +148,10 @@ patchmax_generator <- R6Class(
         obj_field = private$..param_obj_field, 
         proj_area = private$..param_proj_area,
         sample_frac = sample_frac,
-        return_all = return_all)
+        return_all = return_all,
+        show_progress = show_progress)
       
-      message(glue::glue('\n\n Best start node: {names(out)}'))
+      message(glue::glue('\nBest start: {names(out)} ({round(sample_frac*100)}% searched)'))
       private$..best_mem <- names(out)[which.max(out)]
       
       return(invisible(self))
@@ -165,12 +166,16 @@ patchmax_generator <- R6Class(
         return()
       }
 
-      border <- private$..geom$stand_id %in% private$..proj_mem$node
+      selected <- private$..geom$stand_id %in% private$..proj_mem$node
       
       if(is.null(plot_field)){
-        plot(private$..geom[,private$..param_obj_field], border=border)
+        plot(private$..geom[,private$..param_obj_field], 
+             border=c(NA,'red')[selected + 1], 
+             pal=sf.colors(alpha=0.5))
       } else {
-        plot(private$..geom[,plot_field], border=border)
+        plot(private$..geom[,plot_field], 
+             border=c(NA,'red')[selected + 1], 
+             pal=sf.colors(alpha=0.5))
       }
       
       return(invisible(self))

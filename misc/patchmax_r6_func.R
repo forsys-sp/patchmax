@@ -141,7 +141,7 @@ grow_project_func <- function(cpp_graph, net, start_node, proj_area){
 #' @return
 #' @export
 
-search_best_func <- function(cpp_graph, net, obj_field, proj_area, sample_frac = 1, return_all=FALSE){
+search_best_func <- function(cpp_graph, net, obj_field, proj_area, sample_frac = 1, return_all=FALSE, show_progress=FALSE){
   
   # sample fraction of stands to evaluate projects
   nodes <- sample(V(net)$name, size = (length(V(net)$name) * sample_frac))
@@ -157,7 +157,7 @@ search_best_func <- function(cpp_graph, net, obj_field, proj_area, sample_frac =
     }, finally = {
       return(o)
     })
-  }, .progress=T, .options = furrr_options(seed = NULL))
+  }, .progress=show_progress, .options = furrr_options(seed = NULL))
   
   names(out) <- nodes
   
