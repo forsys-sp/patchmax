@@ -93,7 +93,7 @@ runbfs_func <- function(r) {
       }
     }
     
-    # return project output 
+    # return project output if secondary constraint exists
     if (!is.null(P_constraint)) {
       if (P_size * ((P_size_slack - 1) * -1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
         type_constraint <- 1 # valid & constrained

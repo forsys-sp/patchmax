@@ -1,7 +1,11 @@
 ############ PREP DATA ################
 
 # load data and identify adjacency
-geom <- forsys::test_forest %>% mutate(priority5 = sqrt(priority1 * priority2 * priority4) %>% range01)
+geom <- forsys::test_forest %>% mutate(priority5 = range01(sqrt(priority1 + priority2 + priority4)))
+geom$X <- rep(c(1:100), 100)
+geom$Y <- floor(geom$stand_id / 100) + 1
+
+geom <- geom %>% filter(X <= 50 & Y <= 25) %>% dplyr::select(-X, -Y)
 plot(geom[,'priority5'])
 
 # build adjacency network

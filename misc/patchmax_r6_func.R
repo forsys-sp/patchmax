@@ -1,5 +1,48 @@
+# TODO setup patchmax oob to be called by simulate projects
 
-calc_adj_network_func <- function(shp, buf_dist = 1, St_id, calc_dist = FALSE) {
+simulate_projects <- function(
+    geom, # new
+    St_id, 
+    St_adj, 
+    St_area, 
+    St_objective,
+    St_seed = NULL,
+    P_size, 
+    P_size_slack = 0.05, 
+    P_size_ceiling = Inf,
+    P_number = 1,
+    St_threshold = NULL, 
+    St_threshold_value = NULL,
+    St_distances = NULL,
+    SDW = NULL,
+    P_constraint = NULL, 
+    P_constraint_max_value = Inf, 
+    P_constraint_min_value = -Inf, 
+    Candidate_min_size = NULL
+){
+  dat <- data.frame(
+    St_id = St_id,
+    St_area = St_area,
+    St_objective = St_objective,
+    P_constraint = P_constraint)
+ pm <- pm$initialize(geom, St_id, ) 
+  
+}
+
+#' Modified version of Patchmax::calculate_adj that calculates edgewise distances
+#'
+#' @param shp sf-type geometry with attributes 
+#' @param St_id vector of sf feature ideas (i.e., the stand id)
+#' @param buf_dist numeric distance used to buffer geometry and calculate adjacency
+#' @param calc_dist logical for calculating edgewise distance in adjacency network
+#'
+#' @return adjacency network saved as an igraph network object
+
+#' @export
+
+#.....................................................................
+
+calc_adj_network_func <- function(shp, St_id, buf_dist = 1, calc_dist = FALSE) {
   
   # check overlap between buffered geometry to estimate adjacency
   shp_buf <- shp %>% sf::st_buffer(dist = buf_dist)
@@ -35,21 +78,29 @@ calc_adj_network_func <- function(shp, buf_dist = 1, St_id, calc_dist = FALSE) {
 
 #.....................................................................
 
-#' Set threshold for project inclusion
+#' Set threshold for patch inclusion
 #'
 #' @param net igraph adjacency network
-#' @param include logical vector of length `vcount(net)`
-#' @param area_adj value 0-1, percent area 'cost' of excluded stands
-#' @param obj_adj value 0-1, percent contribution of excluded stands to project score
+#' @param include logical vector of same length as the count of network nodes
+#' @param area_penality value 0-1 represent area 'cost' of excluded stands
+#' @param objective_penality value 0-1, percent contribution of excluded stands
+#'   to patch score
 #'
-#' @return igraph adjecency network
+#' @details By default, excluded stands don't count towards the total project
+#'   objective or the total project size. Setting the area and objective adjust
+#'   to a fraction greater than 0 changes this behavior, allowing for a fraction
+#'   of the both values for excluded stands to be counted.
+#'
+#' @return igraph adjacency network
 
-set_threshold_func <- function(net, include, area_adj = 0, obj_adj = 0){
-  message(paste0(round(sum(!include)/length(include)*100), '% outside threshold'))
+set_threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
+  message(glue::glue('{round(sum(include)/length(include)*100)}% stand available; adjusted excluded area by {area_adjust} and objective by {objective_adjust}'))
+  
   V(net)$exclude <- !include
-  V(net)$objective[!include] <- V(net)$objective[!include] * obj_adj
-  V(net)$area[!include] <- V(net)$area[!include] * area_adj
-  V(net)$constraint[!include] <- V(net)$constraint[!include] * area_adj
+  V(net)$objective[!include] <- V(net)$objective[!include] * objective_adjust
+  V(net)$area[!include] <- V(net)$area[!include] * area_adjust
+  V(net)$constraint[!include] <- V(net)$constraint[!include] * area_adjust
+  
   return(net)
 }
 
@@ -68,7 +119,7 @@ set_threshold_func <- function(net, include, area_adj = 0, obj_adj = 0){
 #' @return cpp graph object
 #' @export
 
-build_graph_func <- function(net, obj_field, sdw=1, epw=1){
+build_graph_func <- function(net, objective_field, sdw=1, epw=1){
   
   # extract adjacency network edge list
   el <- igraph::as_edgelist(net, names=T) %>% 
@@ -77,8 +128,8 @@ build_graph_func <- function(net, obj_field, sdw=1, epw=1){
   el$dist <- E(net)$dist
   
   # calculate average objective score for each dyad
-  a <- vertex_attr(net, obj_field, match(el$from, V(net)$name)) 
-  b <- vertex_attr(net, obj_field, match(el$to, V(net)$name)) 
+  a <- vertex_attr(net, objective_field, match(el$from, V(net)$name)) 
+  b <- vertex_attr(net, objective_field, match(el$to, V(net)$name)) 
   el$objective = range01(a + b)
   
   # calculate exclude penalty score for each dyad
@@ -98,90 +149,97 @@ build_graph_func <- function(net, obj_field, sdw=1, epw=1){
 
 #.....................................................................
 
-#' Build project patch
+#' Build patch of specified size while minimizing modified distance costs
 #'
 #' @param cpp_graph graph object 
-#' @param v node id to build project from
-#' @param proj_area size of project
+#' @param v node id to start building patch
+#' @param patch_area size of patch
 #'
 #' @return data frame of nearest nodes arranged by distance
 #' @export
 
-grow_project_func <- function(cpp_graph, net, start_node, proj_area){
+grow_patch_func <- function(cpp_graph, net, start_node, patch_area){
   
+  # calculate distance matrix using Dijkstra's algorithm
   dmat <- get_distance_matrix(cpp_graph, from=start_node, to=cpp_graph$dict$ref, allcores=TRUE)[1,]
-  area <- vertex_attr(net, 'area')
-  objective <- vertex_attr(net, 'objective')
   
-  # arrange nodes by distance
-  dist_df <- data.frame(node = names(dmat), dist = dmat, area = area, objective = objective)
+  # sort nodes by distance
+  dist_df <- data.frame(
+    node = names(dmat), 
+    dist = dmat, 
+    area = vertex_attr(net, 'area', match(cpp_graph$dict$ref,V(net)$name)), 
+    objective = vertex_attr(net, 'objective', match(cpp_graph$dict$ref,V(net)$name)), 
+    row.names = NULL)
+  
+  # identify nearest nodes up to area limit
   dist_df <- dist_df[order(dist_df$dist),]
-  
   dist_df$area_cs <- cumsum(dist_df$area)
-  dist_df$objective_cs <- cumsum(dist_df$objective)
-  
-  # identify nearest nodes up to limit
-  pnodes <- dist_df[1:which.min(abs(dist_df$area_cs - proj_area)),]
-  
-  # TODO deal with secondary constraints
+  pnodes <- dist_df[1:which.min(abs(dist_df$area_cs - patch_area)),]
+
+  # TODO test for secondary project constraint as part of project stand list
+  if(!is.null(constraint)){
+    pnodes$constraint = vertex_attr(net, 'constraint', match(pnodes$node, V(net)$name))
+    pnodes$constraint_cs <- cumsum(pnodes$constraint)
+    gt_min = pnodes$constraint_cs > -Inf
+    lt_max = pnodes$constraint_cs < 5
+    pnodes$constraint_met = gt_min & lt_max
+    max(which(pnodes$constraint_met == 1))
+  }
   
   return(pnodes)
 }
 
 #.....................................................................
 
-#' Evaluate objective score for all potential project seeds
+#' Evaluate objective score for all or fraction of patch stand seeds
 #'
 #' @param cpp_graph cpp graph object
 #' @param net igraph graph object
-#' @param obj_field name of field containing objective values
-#' @param proj_area project size
+#' @param objective_field name of field containing objective values
+#' @param patch_area patch size
 #' @param sample_frac fraction of stands to evaluate
 #'
-#' @return
-#' @export
-
-search_best_func <- function(cpp_graph, net, obj_field, proj_area, sample_frac = 1, return_all=FALSE, show_progress=FALSE){
-  
-  # sample fraction of stands to evaluate projects
-  nodes <- sample(V(net)$name, size = (length(V(net)$name) * sample_frac))
-  
-  # calculate objective score for all potential projects
-  out <- nodes %>% furrr::future_map_dbl(function(i){
-    o <- -99
-    tryCatch({
-      cpp_nn <- grow_project_func(cpp_graph, net = net, start_node = i, proj_area = proj_area)
-      o <- vertex_attr(net, obj_field, match(cpp_nn$node, V(net)$name)) %>% sum()
-    }, error = function(e){
-      e
-    }, finally = {
-      return(o)
-    })
-  }, .progress=show_progress, .options = furrr_options(seed = NULL))
-  
-  names(out) <- nodes
-  
-  if(return_all){
-    return(out)
-  } else {
-    return(out[which.max(out)])
-  }
-  
-}
-
-#.....................................................................
-
-#' Subtract projects from adjacency network
-#'
-#' @param net 
-#' @param rpp_nn 
+#' @details Calculates potential patches for all or fraction of landscape stands
+#'   in order to identify the initial seed that leads to the highest total
+#'   objective score.
 #'
 #' @return
 #' @export
 
-subtract_project_func <- function(net, rpp_nn){
-  net <- delete_vertices(net, rpp_nn$node)
-  return(net)
+  search_best_func <- function(
+    net, cpp_graph, objective_field, patch_area, sdw=1, epw=1, sample_frac = 1, 
+    return_all=FALSE, show_progress=FALSE, sample_type = 'spatial'){
+  
+    # sample fraction of total nodes
+    if(sample_frac > 0 & sample_frac < 1){
+      sample_n = round(igraph::vcount(net) * sample_frac)
+      # sample using regular spatial grid or as a simple random sample
+      if(sample_type == 'spatial'){
+        geom_s = geom %>% dplyr::filter(stand_id %in% V(net)$name)
+        pt_grd = sf::st_sample(geom_s, size = sample_n, type = 'regular')
+        nodes <- sf::st_join(st_as_sf(pt_grd), geom)$stand_id
+      } else {
+        nodes = V(net)$name[sort(sample(1:length(V(net)$name), sample_n))]
+      }
+    }
+
+    # calculate objective score for all potential patches
+    out <- nodes %>% furrr::future_map_dbl(function(i){
+      proj_obj <- -99
+      tryCatch({
+        patch <- grow_patch_func(cpp_graph, net, i, patch_area)
+        proj_obj <- sum(vertex_attr(net, objective_field, match(patch$node, V(net)$name)))
+        return(proj_obj)
+      }, error = function(e) return(0))
+    }, .progress=show_progress, .options = furrr_options(seed = NULL))
+    
+    names(out) <- nodes
+    
+    if(return_all){
+      return(out)
+    } else {
+      return(out[which.max(out)])
+    }
 }
 
 #.....................................................................
