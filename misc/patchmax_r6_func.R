@@ -158,7 +158,7 @@ build_graph_func <- function(net, objective_field, sdw=1, epw=1){
 #' @return data frame of nearest nodes arranged by distance
 #' @export
 
-grow_patch_func <- function(cpp_graph, net, start_node, patch_area){
+build_patch_func <- function(cpp_graph, net, start_node, patch_area){
   
   # calculate distance matrix using Dijkstra's algorithm
   dmat <- get_distance_matrix(cpp_graph, from=start_node, to=cpp_graph$dict$ref, allcores=TRUE)[1,]
@@ -211,7 +211,7 @@ grow_patch_func <- function(cpp_graph, net, start_node, patch_area){
     return_all=FALSE, show_progress=FALSE, sample_type = 'spatial'){
   
     # sample fraction of total nodes
-    if(sample_frac > 0 & sample_frac < 1){
+    if(sample_frac > 0 & sample_frac <= 1){
       sample_n = round(igraph::vcount(net) * sample_frac)
       # sample using regular spatial grid or as a simple random sample
       if(sample_type == 'spatial'){
@@ -227,7 +227,7 @@ grow_patch_func <- function(cpp_graph, net, start_node, patch_area){
     out <- nodes %>% furrr::future_map_dbl(function(i){
       proj_obj <- -99
       tryCatch({
-        patch <- grow_patch_func(cpp_graph, net, i, patch_area)
+        patch <- build_patch_func(cpp_graph, net, i, patch_area)
         proj_obj <- sum(vertex_attr(net, objective_field, match(patch$node, V(net)$name)))
         return(proj_obj)
       }, error = function(e) return(0))

@@ -2,11 +2,10 @@
 patchmax_generator <- R6Class(
   classname = "patch_generator",
   
-  #############################################################################
+  # //////////////////////////////////////////////////////////////////////////
   # PRIVATE ELEMENTS
   # internal aspects of the patchmax generator
-  #############################################################################
-  
+  # //////////////////////////////////////////////////////////////////////////  
   private = list(
     ..net = NULL,
     ..geom = NULL,
@@ -16,6 +15,8 @@ patchmax_generator <- R6Class(
     ..param_area_field = NULL,
     ..param_patch_area = NULL,
     ..param_availability = NULL,
+    ..param_availability_area_adjust = 0,
+    ..param_availability_objective_adjust = 0,
     ..param_constraint_field = NULL,
     ..param_constraint_max = Inf,
     ..param_constraint_min = -Inf,
@@ -24,30 +25,34 @@ patchmax_generator <- R6Class(
     ..patch_mem = NULL,
     ..best_mem = NULL,
 
+    # build cpp graph object     
     ..update_dist = function(){
-      # build cpp graph object     
       cpp_graph <- build_graph_func(
-        # net = private$..net, 
         net = delete_vertices(private$..net, V(private$..net)$patch_id > 0),
         objective_field = private$..param_objective_field, 
         sdw = private$..param_sdw, 
         epw = private$..param_epw)
-      # private$..ccp_graph = cpp_graph
       return(cpp_graph)
     },
     
+    # update adjacency network
     ..update_net = function(){
       
-      net <- private$..net
-     
+      net = private$..net
+      
       # modify area and distance based on availability 
-      net <- set_threshold_func(net, V(net)$available)
+      net <- set_threshold_func(
+        net = net, 
+        include = V(net)$available, 
+        area_adjust = private$..param_availability_area_adjust, 
+        objective_adjust = private$..param_availability_objective_adjust)
       
       # remove stands assigned a patch id
       net <- delete_vertices(net, V(net)$patch_id > 0)
       return(net)
     },
     
+    # set availability provided by the user
     ..set_availability = function(){
       if(!is.null(private$..param_availability)){
         net <- private$..net
@@ -60,6 +65,7 @@ patchmax_generator <- R6Class(
         V(private$..net)$available = 1
     },
 
+    # check that required fields are provided
     ..check_req_fields = function(){
       if(is.null(private$..param_id_field))
         stop('id field is missing')
@@ -71,27 +77,27 @@ patchmax_generator <- R6Class(
         stop('area field is missing')
     },
 
+    # (re)assign objective, area, and constraints to indicated fields
     ..refresh_net_attr = function(){
-      # attribute adjacency network
       if(!is.null(private$..param_objective_field)){
         vertex_attr(private$..net, name = 'objective') <- 
           vertex_attr(private$..net, private$..param_objective_field)
-      }
-      if(!is.null(private$..param_constraint_field)){
-        vertex_attr(private$..net, name = 'constraint') <- 
-          vertex_attr(private$..net, private$..param_constraint_field)
       }
       if(!is.null(private$..param_area_field)){
         vertex_attr(private$..net, name = 'area') <- 
           vertex_attr(private$..net, private$..param_area_field)
       }
+      if(!is.null(private$..param_constraint_field)){
+        vertex_attr(private$..net, name = 'constraint') <- 
+          vertex_attr(private$..net, private$..param_constraint_field)
+      }
     }
   ),
   
-  #############################################################################
+  # //////////////////////////////////////////////////////////////////////////
   # PUBLIC ELEMENTS
   # external methods for running patchmax
-  #############################################################################
+  # //////////////////////////////////////////////////////////////////////////
   
   public = list(
     
@@ -101,14 +107,17 @@ patchmax_generator <- R6Class(
         
         # save geometry
         private$..geom <- geom
-        private$..geom$patch_id = 0
-        private$..geom$available = 1
         
         # parameters
         private$..param_id_field = id_field
         private$..param_objective_field = objective_field
         private$..param_area_field = area_field
         private$..param_patch_area = patch_area 
+        
+        # setup key fields in geometry object
+        private$..geom[,id_field] = as.character(dplyr::pull(private$..geom, id_field))
+        private$..geom$patch_id = 0
+        private$..geom$available = 1
         
         # build adjacency network
         private$..net <- calc_adj_network_func(
@@ -120,6 +129,7 @@ patchmax_generator <- R6Class(
         vertex_attr(private$..net) <- bind_cols(vertex_attr(private$..net), st_drop_geometry(geom))
         vertex_attr(private$..net, name = 'exclude') = 0
         vertex_attr(private$..net, name = 'patch_id') = 0
+        vertex_attr(private$..net, name = 'constraint') = 1
         vertex_attr(private$..net, name = 'available') = 1
         
         private$..refresh_net_attr()
@@ -129,18 +139,17 @@ patchmax_generator <- R6Class(
       }
     },
     
-    # GROW METHOD --------------------------------------------------------
+    # BUILD METHOD --------------------------------------------------------
     
-    grow = function(node=NULL){
+    build = function(node=NULL){
       
       if(is.null(node)){
         node <- private$..best_mem
       }
       
-      # private$..update_dist()
       private$..check_req_fields()
       
-      patch <- grow_patch_func(
+      patch <- build_patch_func(
         cpp_graph = private$..update_dist(), 
         net = private$..update_net(),
         start_node = node, 
@@ -163,8 +172,12 @@ patchmax_generator <- R6Class(
     
     search = function(sample_frac=0.1, return_all=FALSE, show_progress=FALSE, plot_search=FALSE){
       
-      private$..update_dist()
       private$..check_req_fields()
+      private$..update_dist()
+      
+      if(plot_search){
+        return_all = TRUE
+      }
       
       search_out <- search_best_func(
         cpp_graph = private$..update_dist(), 
@@ -181,7 +194,7 @@ patchmax_generator <- R6Class(
           x = private$..geom, 
           y = data.frame(search_out) %>% tibble::rownames_to_column(), 
           by=c('stand_id'='rowname'))
-        plot(pdat[,'search_out'])
+        plot(pdat[,'search_out'], border=NA, key.pos = NULL)
       }
       
       best_out = names(search_out)[which.max(search_out)]
@@ -194,33 +207,55 @@ patchmax_generator <- R6Class(
       return(invisible(self))
     },
     
+    simulate = function(n_projects = 1){
+      for(i in 1:n_projects){
+        self$search()$build()$record(patch_id = i) 
+      }
+    },
+    
     # PLOT METHOD --------------------------------------------------------
     
     plot = function(plot_field = NULL){
       
       if(is.null(private$..patch_mem)){
         message('No patch currently selected')
+      } else {
+        patch = private$..geom %>% 
+          dplyr::select(private$..param_id_field) %>% 
+          dplyr::rename(node = 1) %>% 
+          inner_join(private$..patch_mem, by='node') %>%
+          mutate(available = factor(available))
       }
-
-      # set border colors
-      selected <- private$..geom$stand_id %in% private$..patch_mem$node
-      border_col <- rep(NA, length(selected))
-      border_col[selected] <- 'black'
-      unavailable <- private$..geom$stand_id %in% private$..patch_mem$node[private$..patch_mem$available == 0]
-      border_col[unavailable] <- 'red'
-        
-      plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
       
-      plot(private$..geom[,plot_field], 
-             border=border_col, lwd=2,
-             pal=sf.colors, key.pos = NULL)
-
+      plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
+      patches = private$..geom %>% group_by(patch_id) %>% summarize() %>% filter(patch_id != 0)
+      
+      plot = ggplot() + 
+        geom_sf(data=geom, aes(fill=get(plot_field)), linewidth=0) + 
+        scale_fill_gradientn(colors = sf.colors(10)) +
+        guides(fill = guide_legend(plot_field)) +
+        theme(legend.position = 'bottom') +
+        theme_void() 
+      
+      if(!is.null(private$..patch_mem)){
+        plot = plot + 
+          geom_sf(data=patch, aes(color=available), fill=NA, linewidth=.5) +
+          scale_color_manual(values = c('black','red'), breaks = c(1, 0))
+      }
+      
+      if(nrow(patches) > 0){
+        plot = plot +
+          geom_sf(data=patches, fill=NA, linewidth=.5, color='black') +
+          geom_sf_text(data=patches, aes(label=patch_id))
+      }
+      
+      print(plot)
+      
       return(invisible(self))
     },
     
-    # APPLY METHOD --------------------------------------------------------
-    # (work in progress)
-    
+    # RECORD METHOD --------------------------------------------------------
+
     record = function(patch_id = NULL){
       if(is.null(private$..patch_mem))
         stop('No patch. Run search or select first.')
@@ -231,8 +266,7 @@ patchmax_generator <- R6Class(
 
       V(private$..net)$patch_id[match(private$..patch_mem$node, V(private$..net)$stand_id)] = patch_id
       private$..geom$patch_id[match(private$..patch_mem$node, private$..geom$stand_id)] = patch_id
-      # private$..net <- subtract_patch_func(private$..net, private$..patch_mem)
-      
+
       message(glue::glue('Patch {patch_id} recorded'))
       private$..patch_mem <- NULL
       
@@ -240,17 +274,26 @@ patchmax_generator <- R6Class(
     },
     
     # DESCRIBE METHOD --------------------------------------------------------
-    # (work in progress)
     
     describe = function(){
       private$..geom %>% st_drop_geometry() %>% group_by(patch_id) %>% summarize_if(is.numeric, sum)
+    },
+    
+    # RESET METHOD --------------------------------------------------------
+    
+    reset = function(){
+      message('Selected patches have been deleted')
+      private$..geom$patch_id = 0
+      V(private$..net)$patch_id = 0
+      private$..patch_mem = NULL
+      private$..best_mem = NULL
     }
   ),
   
-  #############################################################################
+  # //////////////////////////////////////////////////////////////////////////
   # ACTIVE BINDINGS 
   # used for getting and setting private elements
-  #############################################################################
+  # //////////////////////////////////////////////////////////////////////////
   
   active = list(
     net = function(){
@@ -263,7 +306,11 @@ patchmax_generator <- R6Class(
       private$..best_mem
     },
     patch = function(){
-      private$..patch_mem
+      if(is.null(private$..patch_mem)){
+        message('No project selected. Please run pm$build()')
+      } else {
+        private$..patch_mem
+      }
     },
     id_field = function(value){
       if(missing(value)){
@@ -302,6 +349,24 @@ patchmax_generator <- R6Class(
         private$..param_availability
       } else {
         private$..param_availability <- value
+        private$..refresh_net_attr()
+        private$..set_availability()
+      }
+    },
+    availability_area_adjust = function(value){
+      if(missing(value)){
+        private$..param_availability_area_adjust
+      } else {
+        private$..param_availability_area_adjust <- value
+        private$..refresh_net_attr()
+        private$..set_availability()
+      }
+    },
+    availability_objective_adjust = function(value){
+      if(missing(value)){
+        private$..param_availability_objective_adjust
+      } else {
+        private$..param_availability_objective_adjust <- value
         private$..refresh_net_attr()
         private$..set_availability()
       }
