@@ -70,6 +70,12 @@ runbfs_func <- function(r) {
       Block_Objective <- sum(St_objective[Stands_block])
     }
     
+    # constraint types:
+    # 0: within area slack
+    # 1: within area slick with constraint
+    # 2: outside area slack due to constraint
+    # 3: outside area slack
+    
     # assign type constraints if no secondary constraint
     if (is.null(P_constraint)) {
       type_constraint <- 0 # valid & non-constrained

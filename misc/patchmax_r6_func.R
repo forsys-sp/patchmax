@@ -99,8 +99,7 @@ set_threshold_func <- function(net, include, area_adjust = 0, objective_adjust =
   V(net)$exclude <- !include
   V(net)$objective[!include] <- V(net)$objective[!include] * objective_adjust
   V(net)$area[!include] <- V(net)$area[!include] * area_adjust
-  V(net)$constraint[!include] <- V(net)$constraint[!include] * area_adjust
-  
+
   return(net)
 }
 
@@ -110,7 +109,8 @@ set_threshold_func <- function(net, include, area_adjust = 0, objective_adjust =
 #'
 #' @param net igraph object
 #' @param obj name of variable containing objective
-#' @param sdw numeric > 0 controlling flexibility
+#' @param sdw numeric >= 0 controlling flexibility; 0 negates any adjustment
+#'   related to the objective.
 #' @param epw numeric > 0 distance multiplier for traversing unavailable stands
 #'
 #' @details `epw` values less than 1 will preferentially select excluded stands
@@ -158,10 +158,10 @@ build_graph_func <- function(net, objective_field, sdw=1, epw=1){
 #' @return data frame of nearest nodes arranged by distance
 #' @export
 
-build_patch_func <- function(cpp_graph, net, start_node, patch_area){
+build_patch_func <- function(cpp_graph, net, start_node, patch_area, area_slack, c_min=-Inf, c_max=Inf){
   
   # calculate distance matrix using Dijkstra's algorithm
-  dmat <- get_distance_matrix(cpp_graph, from=start_node, to=cpp_graph$dict$ref, allcores=TRUE)[1,]
+  dmat <- get_distance_matrix(cpp_graph, from=start_node, to=cpp_graph$dict$ref, allcores=FALSE)[1,]
   
   # sort nodes by distance
   dist_df <- data.frame(
@@ -174,16 +174,20 @@ build_patch_func <- function(cpp_graph, net, start_node, patch_area){
   # identify nearest nodes up to area limit
   dist_df <- dist_df[order(dist_df$dist),]
   dist_df$area_cs <- cumsum(dist_df$area)
+  dist_df$slack_met = abs(dist_df$area_cs - patch_area)/patch_area <= area_slack
   pnodes <- dist_df[1:which.min(abs(dist_df$area_cs - patch_area)),]
 
-  # TODO test for secondary project constraint as part of project stand list
-  if(!is.null(constraint)){
+  # constraint types:
+  # 0: within area slack
+  # 1: within area slack with constraint
+  # 2: outside area slack due to constraint
+  # 3: outside area slack
+  
+  if(!is.null(vertex_attr(net, 'constraint'))){
     pnodes$constraint = vertex_attr(net, 'constraint', match(pnodes$node, V(net)$name))
     pnodes$constraint_cs <- cumsum(pnodes$constraint)
-    gt_min = pnodes$constraint_cs > -Inf
-    lt_max = pnodes$constraint_cs < 5
-    pnodes$constraint_met = gt_min & lt_max
-    max(which(pnodes$constraint_met == 1))
+    pnodes$constraint_met = pnodes$constraint_cs > c_min &  pnodes$constraint_cs < c_max
+    # pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
   }
   
   return(pnodes)
@@ -206,9 +210,9 @@ build_patch_func <- function(cpp_graph, net, start_node, patch_area){
 #' @return
 #' @export
 
-  search_best_func <- function(
-    net, cpp_graph, objective_field, patch_area, sdw=1, epw=1, sample_frac = 1, 
-    return_all=FALSE, show_progress=FALSE, sample_type = 'spatial'){
+  search_best_func <- function(net, cpp_graph, objective_field, patch_area, area_slack, 
+                               c_min=-Inf, c_max=Inf, sample_frac = 1, 
+                               return_all=FALSE, show_progress=FALSE, sample_type = 'spatial'){
   
     # sample fraction of total nodes
     if(sample_frac > 0 & sample_frac <= 1){
@@ -227,12 +231,13 @@ build_patch_func <- function(cpp_graph, net, start_node, patch_area){
     out <- nodes %>% furrr::future_map_dbl(function(i){
       proj_obj <- -99
       tryCatch({
-        patch <- build_patch_func(cpp_graph, net, i, patch_area)
+        patch <- build_patch_func(cpp_graph, net, i, patch_area, area_slack, c_min=c_min, c_max=c_max)
         proj_obj <- sum(vertex_attr(net, objective_field, match(patch$node, V(net)$name)))
         return(proj_obj)
-      }, error = function(e) return(0))
+      }, warning = function(w){}, 
+      error = function(e) return(0))
     }, .progress=show_progress, .options = furrr_options(seed = NULL))
-    
+
     names(out) <- nodes
     
     if(return_all){

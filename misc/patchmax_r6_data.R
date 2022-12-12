@@ -1,13 +1,13 @@
 ############ PREP DATA ################
 
 # load data and identify adjacency
-geom <- forsys::test_forest %>% mutate(priority5 = range01(sqrt(priority1 + priority2 + priority4)))
+geom <- forsys::test_forest %>% 
+  mutate(priority5 = range01(sqrt(priority1 + priority2 + priority4))) %>%
+  mutate(boundary3 = range01(boundary1 * (mosaic1 + priority4 * 3)))
 
 # geom$X <- rep(c(1:100), 100)
 # geom$Y <- floor(geom$stand_id / 100) + 1
 # geom <- geom %>% filter(X <= 50 & Y <= 25) %>% dplyr::select(-X, -Y)
-
-plot(geom[,'priority5'])
 
 # build adjacency network
 adj_net <- calc_adj_network_func(geom, St_id = geom$stand_id, calc_dist = TRUE)

@@ -14,6 +14,7 @@ patchmax_generator <- R6Class(
     ..param_objective_field = NULL,
     ..param_area_field = NULL,
     ..param_patch_area = NULL,
+    ..param_area_slack = 0.10,
     ..param_availability = NULL,
     ..param_availability_area_adjust = 0,
     ..param_availability_objective_adjust = 0,
@@ -129,7 +130,6 @@ patchmax_generator <- R6Class(
         vertex_attr(private$..net) <- bind_cols(vertex_attr(private$..net), st_drop_geometry(geom))
         vertex_attr(private$..net, name = 'exclude') = 0
         vertex_attr(private$..net, name = 'patch_id') = 0
-        vertex_attr(private$..net, name = 'constraint') = 1
         vertex_attr(private$..net, name = 'available') = 1
         
         private$..refresh_net_attr()
@@ -153,7 +153,10 @@ patchmax_generator <- R6Class(
         cpp_graph = private$..update_dist(), 
         net = private$..update_net(),
         start_node = node, 
-        patch_area = private$..param_patch_area)
+        patch_area = private$..param_patch_area,
+        area_slack = private$..param_area_slack,
+        c_min = private$..param_constraint_min,
+        c_max = private$..param_constraint_max)
       
       patch_dat <- vertex_attr(private$..net) %>% 
         dplyr::select(node = name, 
@@ -184,13 +187,16 @@ patchmax_generator <- R6Class(
         net = private$..update_net(), 
         objective_field = private$..param_objective_field, 
         patch_area = private$..param_patch_area,
+        area_slack = private$..param_area_slack,
+        c_min = private$..param_constraint_min,
+        c_max = private$..param_constraint_max,
         sample_frac = sample_frac,
         return_all = return_all,
         show_progress = show_progress)
       
       # plot search results (mainly for debugging)
       if(plot_search){
-        pdat <- left_join(
+        pdat <- dplyr::inner_join(
           x = private$..geom, 
           y = data.frame(search_out) %>% tibble::rownames_to_column(), 
           by=c('stand_id'='rowname'))
@@ -201,9 +207,13 @@ patchmax_generator <- R6Class(
       message(glue::glue('\nBest start: {best_out} ({round(sample_frac*100)}% searched)'))
       private$..best_mem <- best_out
       
-      if(return_all)
-        private$..geom$search_score <- search_out
-      
+      if(return_all){
+        x = private$..geom
+        index = match(names(search_out), dplyr::pull(x,private$..param_id_field))
+        x[index,'search_score'] <- search_out
+        private$..geom = x
+      }
+       
       return(invisible(self))
     },
     
@@ -215,7 +225,7 @@ patchmax_generator <- R6Class(
     
     # PLOT METHOD --------------------------------------------------------
     
-    plot = function(plot_field = NULL){
+    plot = function(plot_field = NULL, return_plot = FALSE, enforce_constraint = TRUE){
       
       if(is.null(private$..patch_mem)){
         message('No patch currently selected')
@@ -224,7 +234,23 @@ patchmax_generator <- R6Class(
           dplyr::select(private$..param_id_field) %>% 
           dplyr::rename(node = 1) %>% 
           inner_join(private$..patch_mem, by='node') %>%
-          mutate(available = factor(available))
+          mutate(available = factor(available)) %>%
+          arrange(dist)
+      }
+      
+      # check constraints TODO: clean-up
+      if(!is.null(private$..param_constraint_field) & enforce_constraint == TRUE & !is.null(private$..patch_mem)){
+        cm = which(patch$constraint_met == TRUE)
+        mx = ifelse(sum(cm) == 0, 1, max(cm))
+        patch <- patch[1:mx,]
+        x <- tail(patch,1)
+        if(x$slack_met & x$constraint_met){
+          message('both area and secondary constraint met')
+        } else if(!x$slack_met & x$constraint_met){
+          message('area unmet due to secondary constraint')
+        } else {
+          message('neither area nor secondary constraint met')
+        }
       }
       
       plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
@@ -238,9 +264,11 @@ patchmax_generator <- R6Class(
         theme_void() 
       
       if(!is.null(private$..patch_mem)){
+        node_0 = suppressWarnings(st_centroid(patch[patch$dist == 0,]))
         plot = plot + 
           geom_sf(data=patch, aes(color=available), fill=NA, linewidth=.5) +
-          scale_color_manual(values = c('black','red'), breaks = c(1, 0))
+          scale_color_manual(values = c('black','red'), breaks = c(1, 0)) +
+          geom_sf(data = node_0, color='black', size=5)
       }
       
       if(nrow(patches) > 0){
@@ -249,19 +277,39 @@ patchmax_generator <- R6Class(
           geom_sf_text(data=patches, aes(label=patch_id))
       }
       
-      print(plot)
-      
-      return(invisible(self))
+      if(return_plot){
+        return(plot)
+      } else {
+        print(plot) 
+      }
+      # return(invisible(self))
     },
     
     # RECORD METHOD --------------------------------------------------------
 
-    record = function(patch_id = NULL){
+    record = function(patch_id = NULL, enforce_constraint = TRUE){
       if(is.null(private$..patch_mem))
         stop('No patch. Run search or select first.')
 
       if(is.null(patch_id)){
         patch_id = max(V(private$..net)$patch_id) + 1
+      }
+      
+      patch <- private$..patch_mem
+      
+      # check constraints TODO: clean-up
+      if(!is.null(private$..param_constraint_field) & enforce_constraint == TRUE){
+        cm = which(patch$constraint_met == TRUE)
+        mx = ifelse(sum(cm) == 0, 1, max(cm))
+        patch <- patch[1:mx,]
+        x <- tail(patch,1)
+        if(x$slack_met & x$constraint_met){
+          message('both area and secondary constraint met')
+        } else if(!x$slack_met & x$constraint_met){
+          message('area unmet due to secondary constraint')
+        } else {
+          message('neither area nor secondary constraint met')
+        }
       }
 
       V(private$..net)$patch_id[match(private$..patch_mem$node, V(private$..net)$stand_id)] = patch_id
@@ -316,6 +364,8 @@ patchmax_generator <- R6Class(
       if(missing(value)){
         private$..param_id_field
       } else {
+        assertive::assert_is_character(value)
+        assertive::is_of_length(value, 1)
         private$..param_id_field <- value
         private$..refresh_net_attr()
       }
@@ -324,6 +374,8 @@ patchmax_generator <- R6Class(
       if(missing(value)){
         private$..param_objective_field
       } else {
+        assertive::assert_is_character(value)
+        assertive::is_of_length(value, 1)
         private$..param_objective_field <- value
         private$..refresh_net_attr()
       }
@@ -332,15 +384,9 @@ patchmax_generator <- R6Class(
       if(missing(value)){
         private$..param_area_field
       } else {
+        assertive::assert_is_character(value)
+        assertive::is_of_length(value, 1)
         private$..param_area_field <- value
-        private$..refresh_net_attr()
-      }
-    },
-    constraint_field = function(value){
-      if(missing(value)){
-        private$..param_constraint_field
-      } else {
-        private$..param_constraint_field <- value
         private$..refresh_net_attr()
       }
     },
@@ -371,10 +417,22 @@ patchmax_generator <- R6Class(
         private$..set_availability()
       }
     },
+    constraint_field = function(value){
+      if(missing(value)){
+        private$..param_constraint_field
+      } else {
+        assertive::assert_is_character(value)
+        assertive::is_of_length(value, 1)
+        private$..param_constraint_field <- value
+        private$..refresh_net_attr()
+      }
+    },
     constraint_max = function(value){
       if(missing(value)){
         private$..param_constraint_max
       } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
         private$..param_constraint_max <- value
         private$..refresh_net_attr()
       }
@@ -383,6 +441,8 @@ patchmax_generator <- R6Class(
       if(missing(value)){
         private$..param_constraint_min
       } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
         private$..param_constraint_min <- value
         private$..refresh_net_attr()
       }
@@ -391,7 +451,19 @@ patchmax_generator <- R6Class(
       if(missing(value)){
         private$..param_patch_area
       } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
         private$..param_patch_area <- value
+        private$..refresh_net_attr()
+      }
+    },
+    area_slack = function(value){
+      if(missing(value)){
+        private$..param_area_slack
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
+        private$..param_area_slack <- value
         private$..refresh_net_attr()
       }
     },
@@ -399,6 +471,8 @@ patchmax_generator <- R6Class(
       if(missing(value)){
         private$..param_epw
       } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
         private$..param_epw <- value
       }
     },
@@ -406,7 +480,28 @@ patchmax_generator <- R6Class(
       if(missing(value)){
         private$..param_sdw
       } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
         private$..param_sdw <- value
+      }
+    },
+    params = function(value){
+      if(missing(value)){
+        nm <- names(private)
+        nm_p <- nm[grepl('..param', nm)]
+        params <- nm_p %>% map(function(x) get(x, envir = private))
+        names(params) <- gsub('..param_','', nm_p)
+        str(params)
+      } else {
+        assertive::assert_is_list(value)
+        for(i in seq_along(value)){
+          tryCatch({
+            nm_p = paste0('..param_',names(value)[i])
+            assign(nm_p, value = value[i][[1]], envir = private)
+          }, error = function(e){
+            message(paste0('Parameter ', i, ' ', names(value)[i], ' not found'))
+          })
+        }
       }
     }
   )
