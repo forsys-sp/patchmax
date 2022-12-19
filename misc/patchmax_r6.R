@@ -1,6 +1,303 @@
-# scenario object generator (read this into memory)
+#' @title Patchmax Class
+#'
+#' @description Patchmax patch selection object. Use params active binding to
+#' view class parameters or set mutiple parameters at once (using a named list).
+#' 
+#' @examples 
+#' geom <- patchmax::test_forest
+#' pm <- patchmax$new(geom, 'stand_id', 'priority1', 'area_ha', 10000)
+#' pm <- pm$params = list(constraint_field = 'priority4', constraint_max = 6, area_min=800)
+#' pm$search(sample_frac = 1, plot_search = T)
+#' pm$build()$plot(show_seed = TRUE)$record()
+#'
+#' @import dplyr
+#' @import ggplot2
+#' @import igraph
+#'
+#' @export
+
 patchmax_generator <- R6Class(
   classname = "patch_generator",
+  
+  # //////////////////////////////////////////////////////////////////////////
+  # PUBLIC ELEMENTS
+  # external methods for running patchmax
+  # //////////////////////////////////////////////////////////////////////////
+  
+  public = list(
+    
+    # INITIALIZE METHOD --------------------------------------------------------
+    #' @description 
+    #' Initialize new patchmax object for building patches
+    #' @param geom sf Dataframe-like sf object with geomerty
+    #' @param if_field character Field name containing unique IDs
+    #' @param objective_field character Field name containing objective values
+    #' @param area_field character Field name containing area
+    #' @param area_max numeric Size of patch
+    #' 
+    initialize = function(geom, id_field=NULL, objective_field=NULL, area_field=NULL, area_max=NULL){
+      if(!missing(geom)){
+        
+        # save geometry
+        private$..geom <- geom
+        
+        # parameters
+        private$..param_id_field = id_field
+        private$..param_objective_field = objective_field
+        private$..param_area_field = area_field
+        private$..param_area_max = area_max 
+        
+        # setup key fields in geometry object
+        private$..geom[,id_field] = as.character(dplyr::pull(private$..geom, id_field))
+        private$..geom$patch_id = 0
+        private$..geom$include = 1
+        
+        # build adjacency network
+        private$..net <- calc_adj_network_func(
+          shp = geom, 
+          St_id = dplyr::pull(geom, id_field), 
+          calc_dist = TRUE)
+        
+        # add addition fields to adjacency network
+        vertex_attr(private$..net) <- bind_cols(vertex_attr(private$..net), st_drop_geometry(geom))
+        vertex_attr(private$..net, name = 'exclude') = 0
+        vertex_attr(private$..net, name = 'patch_id') = 0
+        vertex_attr(private$..net, name = 'include') = 1
+        
+        private$..refresh_net_attr()
+        
+      } else {
+        stop('Geometry required')
+      }
+    },
+    
+    # BUILD METHOD --------------------------------------------------------
+    #' @description 
+    #' Build patch at selected node
+    #' @param node character Stand ID used to build patch (optional)
+    #' @details If node is NULL, use stand id found during search
+    #' 
+    build = function(node=NULL){
+      
+      if(is.null(node)){
+        node <- private$..pending_origin
+      }
+      
+      private$..check_req_fields()
+      
+      patch <- build_patch_func(
+        start_node = node, 
+        cpp_graph = private$..update_dist(), 
+        net = private$..update_net(),
+        a_max = private$..param_area_max,
+        a_min = private$..param_area_min,
+        c_max = private$..param_constraint_max,
+        c_min = private$..param_constraint_min)
+      
+      #evaluate patch here
+      summarize_patch <- function(){
+        table(patch$constraint_met)
+        patch[1:max(which(patch$constraint_met == TRUE)),] %>% 
+          dplyr::select(matches('^area$|^objective$|^constraint$|^include$')) %>%
+          summarize_if(is.numeric, sum)
+      }
+      
+      # append auxiliary data
+      patch_dat <- vertex_attr(private$..net) %>% 
+        dplyr::select(node = name, private$..param_objective_field, include)
+      patch <- dplyr::left_join(patch, patch_dat, by='node')
+      
+      private$..pending_patch <- patch
+      
+      message(glue::glue('Patch stats: start {patch$node[1]}, area {round(sum(patch$area),3)}, score {round(sum(patch$objective),3)}, constraint {round(sum(patch$constraint),3)}, excluded {100-round(sum(patch$include)/nrow(patch)*100)}%'))
+      message(glue::glue('Constraints met: area {patch$area_met[nrow(patch)]}, secondary: {patch$constraint_met[nrow(patch)]}'))
+      
+      return(invisible(self))
+    },
+    
+    # SEARCH METHOD --------------------------------------------------------
+    #' @description 
+    #' Search patch origin with highest objective
+    #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
+    #' @param return_all logical Return search results
+    #' @param show_progress logical Show search progress bar
+    #' @param plot_search logical Map search results
+    #' 
+    search = function(sample_frac=0.1, return_all=FALSE, show_progress=FALSE, plot_search=FALSE){
+      
+      private$..check_req_fields()
+      private$..update_dist()
+      
+      if(plot_search){
+        return_all = TRUE
+      }
+      
+      search_out <- search_best_func(
+        cpp_graph = private$..update_dist(), 
+        net = private$..update_net(), 
+        objective_field = private$..param_objective_field, 
+        a_max = private$..param_area_max,
+        a_min = private$..param_area_min,
+        c_max = private$..param_constraint_max,
+        c_min = private$..param_constraint_min,
+        sample_frac = sample_frac,
+        return_all = return_all,
+        show_progress = show_progress)
+      
+      best_out = names(search_out)[which.max(search_out)]
+      message(glue::glue('\nBest start: {best_out} ({round(sample_frac*100)}% search)'))
+      private$..pending_origin <- best_out
+      
+      # plot search results (mainly for debugging)
+      if(plot_search){
+        pdat <- dplyr::inner_join(
+          x = private$..geom, 
+          y = data.frame(search_out) %>% tibble::rownames_to_column(), 
+          by=c('stand_id'='rowname'))
+        origin <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
+        p1 <- ggplot() + 
+          geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
+          geom_sf(data=suppressWarnings(st_centroid(origin)), size=4, shape=5) +
+          scale_fill_gradientn(colors = sf.colors(10)) +
+          theme(legend.position = 'bottom') +
+          theme_void() 
+        p2 <- data.frame(score = sort(pdat$search_out, decreasing = T)) %>% 
+          dplyr::mutate(rank = 1:n()) %>%
+          ggplot(aes(x=rank, y=score, color=score)) + 
+          geom_point(size=5, shape=15) +
+          scale_color_gradientn(colors = sf.colors(10)) + 
+          theme_minimal()
+        print(cowplot::plot_grid(p1, p2, ncol = 1))
+      }
+      
+      if(return_all){
+        x = private$..geom
+        index = match(names(search_out), dplyr::pull(x,private$..param_id_field))
+        x[index,'search_score'] <- search_out
+        private$..geom = x
+      }
+      
+      return(invisible(self))
+    },
+    
+    simulate = function(n_projects = 1, sample_frac = 0.1){
+      for(i in 1:n_projects){
+        self$search(sample_frac = sample_frac)$build()$record(patch_id = i) 
+      }
+    },
+    
+    # PLOT METHOD --------------------------------------------------------
+    #' @description
+    #' Plot patch and stand map
+    #' @param plot_field character Field name to plot
+    #' @param return_plot logical Return ggplot object
+    #' @param enforce_constraint logical Apply secondary constraint
+    #' @param show_seed logical Show origin used to build selected patch?
+    #' 
+    plot = function(plot_field = NULL, 
+                    return_plot = FALSE, 
+                    enforce_constraint = TRUE, 
+                    show_seed = FALSE){
+      
+      if(is.null(private$..pending_patch)){
+        message('No patch currently selected')
+      } else {
+        patch = private$..geom %>% 
+          dplyr::select(private$..param_id_field) %>% 
+          dplyr::rename(node = 1) %>% 
+          inner_join(private$..pending_patch, by='node') %>%
+          mutate(include = factor(include)) %>%
+          arrange(dist)
+      }
+      
+      plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
+      
+      patches = private$..geom %>% 
+        group_by(patch_id) %>% 
+        summarize() %>% 
+        filter(patch_id != 0)
+      
+      plot = ggplot() + 
+        geom_sf(data=geom, aes(fill=get(plot_field)), linewidth=0) + 
+        scale_fill_gradientn(colors = sf.colors(10)) +
+        guides(fill = guide_legend(plot_field)) +
+        theme(legend.position = 'bottom') +
+        theme_void() 
+      
+      if(!is.null(private$..pending_patch)){
+        plot = plot + 
+          geom_sf(data=suppressWarnings(st_centroid(patch)), aes(shape=include), size=5) +
+          scale_shape_manual(values=c(4,16), breaks=c(0,1))
+        if(show_seed){
+          node_0 = suppressWarnings(st_centroid(patch[patch$dist == 0,]))
+          plot = plot + geom_sf(data = node_0, color='black', size=5, shape=15)
+        }
+      }
+      
+      if(nrow(patches) > 0){
+        plot = plot +
+          geom_sf(data=patches, fill=NA, linewidth=.5, color='black') +
+          geom_sf_text(data=patches, aes(label=patch_id))
+      }
+      
+      if(return_plot){
+        return(plot)
+      } else {
+        print(plot) 
+      }
+      return(invisible(self))
+    },
+    
+    # RECORD METHOD --------------------------------------------------------
+    #' @description 
+    #' Record selected patch
+    #' @param patch_id integer/character Patch name. If null, add one to highest
+    #' @param enforce_constraint logical Apply secondary constraint
+    #' 
+    record = function(patch_id = NULL, enforce_constraint = TRUE){
+      if(is.null(private$..pending_patch))
+        stop('No patch. Run search or select first.')
+      
+      # generate patch id if missing
+      if(is.null(patch_id)){
+        patch_id = max(V(private$..net)$patch_id) + 1
+      }
+      
+      patch <- private$..pending_patch
+      
+      # record patch id
+      V(private$..net)$patch_id[match(private$..pending_patch$node, V(private$..net)$stand_id)] = patch_id
+      private$..geom$patch_id[match(private$..pending_patch$node, private$..geom$stand_id)] = patch_id
+      
+      message(glue::glue('Patch {patch_id} recorded\n-------------'))
+      private$..pending_patch <- NULL
+      
+      return(invisible(self))
+    },
+    
+    # DESCRIBE METHOD --------------------------------------------------------
+    #' @description 
+    #' Summarize recorded patches
+    #' 
+    describe = function(){
+      private$..geom %>% 
+        st_drop_geometry() %>% 
+        group_by(patch_id) %>% 
+        summarize_if(is.numeric, sum)
+    },
+    
+    # RESET METHOD --------------------------------------------------------
+    #' @description 
+    #' Reset recorded patches
+    #' 
+    reset = function(){
+      message('Selected patches have been deleted')
+      private$..geom$patch_id = 0
+      V(private$..net)$patch_id = 0
+      private$..pending_patch = NULL
+      private$..pending_origin = NULL
+    }
+  ),
   
   # //////////////////////////////////////////////////////////////////////////
   # PRIVATE ELEMENTS
@@ -13,18 +310,20 @@ patchmax_generator <- R6Class(
     ..param_id_field = NULL,
     ..param_objective_field = NULL,
     ..param_area_field = NULL,
-    ..param_patch_area = NULL,
-    ..param_area_slack = 0.10,
-    ..param_availability = NULL,
-    ..param_availability_area_adjust = 0,
-    ..param_availability_objective_adjust = 0,
+    ..param_area_max = NULL,
+    ..param_area_min = -Inf,
+    ..param_threshold = NULL,
+    ..param_threshold_area_adjust = 0,
+    ..param_threshold_objective_adjust = 0,
     ..param_constraint_field = NULL,
     ..param_constraint_max = Inf,
     ..param_constraint_min = -Inf,
-    ..param_sdw = 1,
-    ..param_epw = 1,
-    ..patch_mem = NULL,
-    ..best_mem = NULL,
+    ..param_sdw = 0,
+    ..param_epw = 0,
+    ..pending_patch = NULL,
+    ..pending_origin = NULL,
+    ..record_stands = NULL,
+    ..record_patches = NULL,
 
     # build cpp graph object     
     ..update_dist = function(){
@@ -41,29 +340,29 @@ patchmax_generator <- R6Class(
       
       net = private$..net
       
-      # modify area and distance based on availability 
+      # modify area and distance based on threshold 
       net <- set_threshold_func(
         net = net, 
-        include = V(net)$available, 
-        area_adjust = private$..param_availability_area_adjust, 
-        objective_adjust = private$..param_availability_objective_adjust)
+        include = V(net)$include, 
+        area_adjust = private$..param_threshold_area_adjust, 
+        objective_adjust = private$..param_threshold_objective_adjust)
       
       # remove stands assigned a patch id
       net <- delete_vertices(net, V(net)$patch_id > 0)
       return(net)
     },
     
-    # set availability provided by the user
-    ..set_availability = function(){
-      if(!is.null(private$..param_availability)){
+    # set threshold provided by the user
+    ..set_threshold = function(){
+      if(!is.null(private$..param_threshold)){
         net <- private$..net
-        s_txt = private$..param_availability
+        s_txt = private$..param_threshold
         id = private$..param_id_field
-        all_ids = pull(vertex_attr(net), id)        
-        available_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% pull(id)
-        V(private$..net)$available = ifelse(all_ids %in% available_ids, 1, 0)
+        all_ids = dplyr::pull(vertex_attr(net), id)   
+        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% pull(id)
+        V(private$..net)$include = ifelse(all_ids %in% include_ids, 1, 0)
       } else
-        V(private$..net)$available = 1
+        V(private$..net)$include = 1
     },
 
     # check that required fields are provided
@@ -72,7 +371,7 @@ patchmax_generator <- R6Class(
         stop('id field is missing')
       if(is.null(private$..param_objective_field))
         stop('objective field is missing')
-      if(is.null(private$..param_patch_area))
+      if(is.null(private$..param_area_max))
         stop('patch area is missing')
       if(is.null(private$..param_area_field))
         stop('area field is missing')
@@ -94,250 +393,7 @@ patchmax_generator <- R6Class(
       }
     }
   ),
-  
-  # //////////////////////////////////////////////////////////////////////////
-  # PUBLIC ELEMENTS
-  # external methods for running patchmax
-  # //////////////////////////////////////////////////////////////////////////
-  
-  public = list(
-    
-    # INITIALIZE METHOD --------------------------------------------------------
-    initialize = function(geom, id_field=NULL, objective_field=NULL, area_field=NULL, patch_area=NULL){
-      if(!missing(geom)){
-        
-        # save geometry
-        private$..geom <- geom
-        
-        # parameters
-        private$..param_id_field = id_field
-        private$..param_objective_field = objective_field
-        private$..param_area_field = area_field
-        private$..param_patch_area = patch_area 
-        
-        # setup key fields in geometry object
-        private$..geom[,id_field] = as.character(dplyr::pull(private$..geom, id_field))
-        private$..geom$patch_id = 0
-        private$..geom$available = 1
-        
-        # build adjacency network
-        private$..net <- calc_adj_network_func(
-          shp = geom, 
-          St_id = dplyr::pull(geom, id_field), 
-          calc_dist = TRUE)
-        
-        # add addition fields to adjacency network
-        vertex_attr(private$..net) <- bind_cols(vertex_attr(private$..net), st_drop_geometry(geom))
-        vertex_attr(private$..net, name = 'exclude') = 0
-        vertex_attr(private$..net, name = 'patch_id') = 0
-        vertex_attr(private$..net, name = 'available') = 1
-        
-        private$..refresh_net_attr()
-        
-      } else {
-        stop('Geometry required')
-      }
-    },
-    
-    # BUILD METHOD --------------------------------------------------------
-    
-    build = function(node=NULL){
-      
-      if(is.null(node)){
-        node <- private$..best_mem
-      }
-      
-      private$..check_req_fields()
-      
-      patch <- build_patch_func(
-        cpp_graph = private$..update_dist(), 
-        net = private$..update_net(),
-        start_node = node, 
-        patch_area = private$..param_patch_area,
-        area_slack = private$..param_area_slack,
-        c_min = private$..param_constraint_min,
-        c_max = private$..param_constraint_max)
-      
-      patch_dat <- vertex_attr(private$..net) %>% 
-        dplyr::select(node = name, 
-                      private$..param_objective_field, 
-                      available)
-      
-      patch <- dplyr::left_join(patch, patch_dat, by='node')
-      private$..patch_mem <- patch
-      
-      message(glue::glue('Patch stats: start {private$..patch_mem$node[1]}, area {round(sum(private$..patch_mem$area),3)}, score {round(sum(private$..patch_mem$objective),3)}, distance {round(sum(private$..patch_mem$dist),3)}'))
-      
-      return(invisible(self))
-    },
-    
-    # SEARCH METHOD --------------------------------------------------------
-    
-    search = function(sample_frac=0.1, return_all=FALSE, show_progress=FALSE, plot_search=FALSE){
-      
-      private$..check_req_fields()
-      private$..update_dist()
-      
-      if(plot_search){
-        return_all = TRUE
-      }
-      
-      search_out <- search_best_func(
-        cpp_graph = private$..update_dist(), 
-        net = private$..update_net(), 
-        objective_field = private$..param_objective_field, 
-        patch_area = private$..param_patch_area,
-        area_slack = private$..param_area_slack,
-        c_min = private$..param_constraint_min,
-        c_max = private$..param_constraint_max,
-        sample_frac = sample_frac,
-        return_all = return_all,
-        show_progress = show_progress)
-      
-      # plot search results (mainly for debugging)
-      if(plot_search){
-        pdat <- dplyr::inner_join(
-          x = private$..geom, 
-          y = data.frame(search_out) %>% tibble::rownames_to_column(), 
-          by=c('stand_id'='rowname'))
-        plot(pdat[,'search_out'], border=NA, key.pos = NULL)
-      }
-      
-      best_out = names(search_out)[which.max(search_out)]
-      message(glue::glue('\nBest start: {best_out} ({round(sample_frac*100)}% searched)'))
-      private$..best_mem <- best_out
-      
-      if(return_all){
-        x = private$..geom
-        index = match(names(search_out), dplyr::pull(x,private$..param_id_field))
-        x[index,'search_score'] <- search_out
-        private$..geom = x
-      }
-       
-      return(invisible(self))
-    },
-    
-    simulate = function(n_projects = 1){
-      for(i in 1:n_projects){
-        self$search()$build()$record(patch_id = i) 
-      }
-    },
-    
-    # PLOT METHOD --------------------------------------------------------
-    
-    plot = function(plot_field = NULL, return_plot = FALSE, enforce_constraint = TRUE){
-      
-      if(is.null(private$..patch_mem)){
-        message('No patch currently selected')
-      } else {
-        patch = private$..geom %>% 
-          dplyr::select(private$..param_id_field) %>% 
-          dplyr::rename(node = 1) %>% 
-          inner_join(private$..patch_mem, by='node') %>%
-          mutate(available = factor(available)) %>%
-          arrange(dist)
-      }
-      
-      # check constraints TODO: clean-up
-      if(!is.null(private$..param_constraint_field) & enforce_constraint == TRUE & !is.null(private$..patch_mem)){
-        cm = which(patch$constraint_met == TRUE)
-        mx = ifelse(sum(cm) == 0, 1, max(cm))
-        patch <- patch[1:mx,]
-        x <- tail(patch,1)
-        if(x$slack_met & x$constraint_met){
-          message('both area and secondary constraint met')
-        } else if(!x$slack_met & x$constraint_met){
-          message('area unmet due to secondary constraint')
-        } else {
-          message('neither area nor secondary constraint met')
-        }
-      }
-      
-      plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
-      patches = private$..geom %>% group_by(patch_id) %>% summarize() %>% filter(patch_id != 0)
-      
-      plot = ggplot() + 
-        geom_sf(data=geom, aes(fill=get(plot_field)), linewidth=0) + 
-        scale_fill_gradientn(colors = sf.colors(10)) +
-        guides(fill = guide_legend(plot_field)) +
-        theme(legend.position = 'bottom') +
-        theme_void() 
-      
-      if(!is.null(private$..patch_mem)){
-        node_0 = suppressWarnings(st_centroid(patch[patch$dist == 0,]))
-        plot = plot + 
-          geom_sf(data=patch, aes(color=available), fill=NA, linewidth=.5) +
-          scale_color_manual(values = c('black','red'), breaks = c(1, 0)) +
-          geom_sf(data = node_0, color='black', size=5)
-      }
-      
-      if(nrow(patches) > 0){
-        plot = plot +
-          geom_sf(data=patches, fill=NA, linewidth=.5, color='black') +
-          geom_sf_text(data=patches, aes(label=patch_id))
-      }
-      
-      if(return_plot){
-        return(plot)
-      } else {
-        print(plot) 
-      }
-      # return(invisible(self))
-    },
-    
-    # RECORD METHOD --------------------------------------------------------
 
-    record = function(patch_id = NULL, enforce_constraint = TRUE){
-      if(is.null(private$..patch_mem))
-        stop('No patch. Run search or select first.')
-
-      if(is.null(patch_id)){
-        patch_id = max(V(private$..net)$patch_id) + 1
-      }
-      
-      patch <- private$..patch_mem
-      
-      # check constraints TODO: clean-up
-      if(!is.null(private$..param_constraint_field) & enforce_constraint == TRUE){
-        cm = which(patch$constraint_met == TRUE)
-        mx = ifelse(sum(cm) == 0, 1, max(cm))
-        patch <- patch[1:mx,]
-        x <- tail(patch,1)
-        if(x$slack_met & x$constraint_met){
-          message('both area and secondary constraint met')
-        } else if(!x$slack_met & x$constraint_met){
-          message('area unmet due to secondary constraint')
-        } else {
-          message('neither area nor secondary constraint met')
-        }
-      }
-
-      V(private$..net)$patch_id[match(private$..patch_mem$node, V(private$..net)$stand_id)] = patch_id
-      private$..geom$patch_id[match(private$..patch_mem$node, private$..geom$stand_id)] = patch_id
-
-      message(glue::glue('Patch {patch_id} recorded'))
-      private$..patch_mem <- NULL
-      
-      return(invisible(self))
-    },
-    
-    # DESCRIBE METHOD --------------------------------------------------------
-    
-    describe = function(){
-      private$..geom %>% st_drop_geometry() %>% group_by(patch_id) %>% summarize_if(is.numeric, sum)
-    },
-    
-    # RESET METHOD --------------------------------------------------------
-    
-    reset = function(){
-      message('Selected patches have been deleted')
-      private$..geom$patch_id = 0
-      V(private$..net)$patch_id = 0
-      private$..patch_mem = NULL
-      private$..best_mem = NULL
-    }
-  ),
-  
   # //////////////////////////////////////////////////////////////////////////
   # ACTIVE BINDINGS 
   # used for getting and setting private elements
@@ -351,13 +407,13 @@ patchmax_generator <- R6Class(
       private$..geom
     },
     best = function(){
-      private$..best_mem
+      private$..pending_origin
     },
     patch = function(){
-      if(is.null(private$..patch_mem)){
+      if(is.null(private$..pending_patch)){
         message('No project selected. Please run pm$build()')
       } else {
-        private$..patch_mem
+        private$..pending_patch
       }
     },
     id_field = function(value){
@@ -390,31 +446,31 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
-    availability = function(value){
+    threshold = function(value){
       if(missing(value)){
-        private$..param_availability
+        private$..param_threshold
       } else {
-        private$..param_availability <- value
+        private$..param_threshold <- value
         private$..refresh_net_attr()
-        private$..set_availability()
+        private$..set_threshold()
       }
     },
-    availability_area_adjust = function(value){
+    threshold_area_adjust = function(value){
       if(missing(value)){
-        private$..param_availability_area_adjust
+        private$..param_threshold_area_adjust
       } else {
-        private$..param_availability_area_adjust <- value
+        private$..param_threshold_area_adjust <- value
         private$..refresh_net_attr()
-        private$..set_availability()
+        private$..set_threshold()
       }
     },
-    availability_objective_adjust = function(value){
+    threshold_objective_adjust = function(value){
       if(missing(value)){
-        private$..param_availability_objective_adjust
+        private$..param_threshold_objective_adjust
       } else {
-        private$..param_availability_objective_adjust <- value
+        private$..param_threshold_objective_adjust <- value
         private$..refresh_net_attr()
-        private$..set_availability()
+        private$..set_threshold()
       }
     },
     constraint_field = function(value){
@@ -447,23 +503,25 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
-    patch_area = function(value){
+    area_max = function(value){
       if(missing(value)){
-        private$..param_patch_area
+        private$..param_area_max
       } else {
         assertive::assert_is_numeric(value)
         assertive::is_of_length(value, 1)
-        private$..param_patch_area <- value
+        assertive::is_positive(value)
+        private$..param_area_max <- value
         private$..refresh_net_attr()
       }
     },
-    area_slack = function(value){
+    area_min = function(value){
       if(missing(value)){
-        private$..param_area_slack
+        private$..param_area_min
       } else {
         assertive::assert_is_numeric(value)
         assertive::is_of_length(value, 1)
-        private$..param_area_slack <- value
+        assertive::is_in_range(value, 0, 1, FALSE, FALSE)
+        private$..param_area_min <- value
         private$..refresh_net_attr()
       }
     },
@@ -472,7 +530,8 @@ patchmax_generator <- R6Class(
         private$..param_epw
       } else {
         assertive::assert_is_numeric(value)
-        assertive::is_of_length(value, 1)
+        assertive::assert_is_of_length(value, 1)
+        assertive::assert_all_are_in_range(value, -1, 1, F, F)
         private$..param_epw <- value
       }
     },
@@ -481,7 +540,8 @@ patchmax_generator <- R6Class(
         private$..param_sdw
       } else {
         assertive::assert_is_numeric(value)
-        assertive::is_of_length(value, 1)
+        assertive::assert_is_of_length(value, 1)
+        assertive::assert_all_are_in_range(value, -1, 1, F, F)
         private$..param_sdw <- value
       }
     },
@@ -496,10 +556,12 @@ patchmax_generator <- R6Class(
         assertive::assert_is_list(value)
         for(i in seq_along(value)){
           tryCatch({
-            nm_p = paste0('..param_',names(value)[i])
-            assign(nm_p, value = value[i][[1]], envir = private)
+            # nm_p = paste0('..param_',names(value)[i])
+            nm = names(value)[i]
+            assign(nm, value = value[i][[1]], envir = self)
           }, error = function(e){
-            message(paste0('Parameter ', i, ' ', names(value)[i], ' not found'))
+            # message(paste0('Parameter ', i, ' ', names(value)[i], ' not found'))
+            print(e)
           })
         }
       }

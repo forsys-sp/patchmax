@@ -3,8 +3,6 @@ pacman::p_load(dplyr, sf, ggplot2, R6, assertive,
                igraph, cppRouting, proxy, 
                furrr, animation, glue, purrr)
 
-remotes::install_github("xoopR/param6")
-
 
 # source patchmax, patchmax functions, and example data
 source('misc/patchmax_r6.R')
@@ -16,74 +14,124 @@ plan(multisession, workers = 8)
 
 # geom <- geom %>% filter(boundary3 != 0)
 
-# create new patchmax generator with stand geometry and required field names
-patchmax <- patchmax_generator$new(geom, 'stand_id', 'priority1', 'area_ha', 25000)
-patchmax$constraint_field = 'priority2'; patchmax$constraint_min = 1; patchmax$constraint_max = 40
-patchmax$params
-patchmax$params <- list(sdw = 4, epw = 10, patch_area = 50000)
-patchmax$params <- list(constraint_field = NULL, objective = 'test')
+# DONE !! Prohibit patches failing area & secondary constraints, results in NA in search map
+# DONE !! Fix issue with threshold leading to later patches having higher objectives
+# TODO !! Correctly catch errors where not enough canidate projects exist during search
 
-patchmax$search(plot_search = T)
-patchmax$sdw = 10
-patchmax$area_slack = 0.25
-patchmax$build(2063)
-patchmax$patch
-patchmax$plot()
-patchmax$record()
-patchmax$search(sample_frac = 1, show_progress = T, plot_search = T)
-patchmax$search()$build()
-patchmax$plot()
-patchmax$describe()
+
+# create new patchmax generator with stand geometry and required field names
+p <- patchmax_generator$new(geom, 'stand_id', 'priority1', 'area_ha', 1000)
+p$params = list(area_max = 1000, area_min = 500, constraint_field = 'revenue', constraint_max  = 10000)
+p$search(sample_frac = .1, plot_search = T)
+
+p$params = list(threshold = 'threshold2 == 1')
+# p$simulate(n_projects = 20)
+
+p$epw = 1
+
+p$reset()
+p$simulate(n = 25, sample_frac = 1)
+p$search(1)$build()$plot()
+p$plot()
+
+p$build(11)$plot(show_seed = TRUE)
+p$record()
+p$plot('threshold2')
+
+p$threshold = 'threshold2 == 1'
+p$threshold = NULL
+p$build(823)$plot('threshold2')
+
+# 823: 7.08 w/ constraint 7.11; w/o constraint
+
+p$plot('cluster2')
+
+plot(geom %>% mutate(revenue = ((priority2 + priority4 - cluster1) * 1000)) %>% select(revenue), border=NA)
+
+p$geom$patch_id
+
+p$reset()
+p$simulate(n_projects = 40)
+p$search(sample_frac = 1, plot_search = T)
+p$build()$plot()
+
+p$area_slack = -1
+p$params = list(threshold = 'threshold2 == 1', sdw = -1, epw = 1)
+p$build(4080)$plot()
+p$search(show_progress = T)$build()$plot()
+
+
+# constraint types:
+# 0: within area slack
+# 1: within area slack with constraint
+# 2: outside area slack due to constraint
+# 3: outside area slack
+
+p$constraint_field = 'priority2'; p$constraint_min = 1; p$constraint_max = 40
+
+p$params
+p$params <- list(sdw = 4, epw = 10, patch_area = 50000)
+p$params <- list(constraint_field = NULL, objective = 'test')
+
+p$search(plot_search = T)
+p$sdw = 10
+p$area_slack = 0.25
+
+p$record()
+p$search(sample_frac = 1, show_progress = T, plot_search = T)
+p$search()$build()
+p$plot()
+p$describe()
 
 # setting optional parameters
-patchmax$sdw = 0
-patchmax$availability = 'threshold2 == 1'
-patchmax$availability = NULL
-patchmax$constraint_field = 'priority1'
-patchmax$constraint_max = 100
+p$sdw = 0
+p$threshold = 'threshold2 == 1'
+p$threshold = NULL
+p$constraint_field = 'priority1'
+p$constraint_max = 100
 
-patchmax$patch_area = 10000
+p$patch_area = 10000
 
 # example of building a project at center of study area 
-patchmax$build(2363)
-patchmax$plot()
+p$build(2363)
+p$plot()
 
 # example of searching study area for best patch seed
-patchmax$search()
-patchmax$build()
-patchmax$plot()
+p$search()
+p$build()
+p$plot()
 
 # example of chaining together commands
-patchmax$search()$build()$plot()
+p$search()$build()$plot()
 
 # plotting search results (used to select best project)
-patchmax$search(sample_frac = 1, show_progress = T, plot_search = TRUE)
+p$search(sample_frac = 1, show_progress = T, plot_search = TRUE)
 
 # notice difference (including processing time) when sampling from stands
-patchmax$search(sample_frac = 0.25, show_progress = T, plot_search = TRUE)
-patchmax$search(sample_frac = 0.1, show_progress = T, plot_search = TRUE)
+p$search(sample_frac = 0.25, show_progress = T, plot_search = TRUE)
+p$search(sample_frac = 0.1, show_progress = T, plot_search = TRUE)
 
 # example building three patches in sequence
-patchmax$patch_area = 10000
-patchmax$search()$build()$record() # patch 1
-patchmax$search()$build()$record() # patch 2
-patchmax$search()$build()$record() # patch 3
-patchmax$plot()
+p$patch_area = 10000
+p$search()$build()$record() # patch 1
+p$search()$build()$record() # patch 2
+p$search()$build()$record() # patch 3
+p$plot()
 
 # report statistics for recorded patches
-patchmax$describe()
+p$describe()
 
 # reset recorded patches
-patchmax$reset()
+p$reset()
 
 # simulate multiple patches in sequence
-patchmax$patch_area = 5000
-patchmax$simulate(n_projects = 50)
-patchmax$describe()
-patchmax$plot()
+p$patch_area = 5000
+p$simulate(n_projects = 50)
+p$describe()
+p$plot()
 
 # plot patch project values across all priorities
-pdat <- patchmax$describe() %>% 
+pdat <- p$describe() %>% 
   dplyr::select(matches('patch_id|priority')) %>% 
   tidyr::pivot_longer(-1) %>%
   filter(patch_id != 0) %>%
@@ -111,9 +159,9 @@ plot(geom[,c('priority1','priority2','priority3','priority4','priority5')], bord
 
 
 
-patchmax$patch_area = 20000
-patchmax$simulate(n_projects = 50)
-patchmax$describe()
+p$patch_area = 20000
+p$simulate(n_projects = 50)
+p$describe()
 
 
 
@@ -125,9 +173,9 @@ p_out <- c(sq2,rev(sq2)) %>% purrr::map(function(q){
   print(q)
   geom$priority_12 = geom$priority1 * q + geom$priority2 * (1 - q)
   patchmax <- patchmax_generator$new(geom, 'stand_id', 'priority_12', 'area_ha', 20000)
-  patchmax$simulate(n_projects = 20)
-  patch_out <- patchmax$describe()
-  stand_out <- patchmax$geom %>% 
+  p$simulate(n_projects = 20)
+  patch_out <- p$describe()
+  stand_out <- p$geom %>% 
     dplyr::select(stand_id, priority_12, patch_id) %>%
     filter(patch_id != 0)
   return(list(patch_out, stand_out))

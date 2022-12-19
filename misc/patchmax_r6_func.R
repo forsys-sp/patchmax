@@ -1,31 +1,31 @@
 # TODO setup patchmax oob to be called by simulate projects
 
 simulate_projects <- function(
-    geom, # new
-    St_id, 
-    St_adj, 
-    St_area, 
-    St_objective,
-    St_seed = NULL,
-    P_size, 
-    P_size_slack = 0.05, 
-    P_size_ceiling = Inf,
-    P_number = 1,
-    St_threshold = NULL, 
-    St_threshold_value = NULL,
-    St_distances = NULL,
-    SDW = NULL,
-    P_constraint = NULL, 
-    P_constraint_max_value = Inf, 
-    P_constraint_min_value = -Inf, 
-    Candidate_min_size = NULL
+    geom,                             # new
+    St_id,                            # add to geom / overwrite
+    St_adj,                           # deleted
+    St_area,                          # add to geom / overwrite
+    St_objective,                     # add to geom / overwrite
+    St_seed = NULL,                   # ???
+    P_size,                           # transfer
+    P_size_slack = 0.05,              # mutate to min project area
+    P_size_ceiling = Inf,             # not required: to delete
+    P_number = 1,                     # transfer
+    St_threshold = NULL,              # rework       
+    St_threshold_value = NULL,        # rework
+    St_distances = NULL,              # deleted
+    SDW = NULL,                       # direct transfer
+    P_constraint = NULL,              # add to geom / overwrite
+    P_constraint_max_value = Inf,     # 
+    P_constraint_min_value = -Inf,    # 
+    Candidate_min_size = NULL         # deleted
 ){
   dat <- data.frame(
     St_id = St_id,
     St_area = St_area,
     St_objective = St_objective,
     P_constraint = P_constraint)
- pm <- pm$initialize(geom, St_id, ) 
+    pm <- pm$initialize(geom, St_id, ) 
   
 }
 
@@ -94,12 +94,14 @@ calc_adj_network_func <- function(shp, St_id, buf_dist = 1, calc_dist = FALSE) {
 #' @return igraph adjacency network
 
 set_threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
-  message(glue::glue('{round(sum(include)/length(include)*100)}% stand available; adjusted excluded area by {area_adjust} and objective by {objective_adjust}'))
+  
+  # message(glue::glue('{round(sum(include)/length(include)*100)}% stands met threshold'))
   
   V(net)$exclude <- !include
   V(net)$objective[!include] <- V(net)$objective[!include] * objective_adjust
   V(net)$area[!include] <- V(net)$area[!include] * area_adjust
-
+  if(!is.null(V(net)$constraint))
+    V(net)$constraint[!include] <- V(net)$constraint[!include] * 0
   return(net)
 }
 
@@ -111,7 +113,7 @@ set_threshold_func <- function(net, include, area_adjust = 0, objective_adjust =
 #' @param obj name of variable containing objective
 #' @param sdw numeric >= 0 controlling flexibility; 0 negates any adjustment
 #'   related to the objective.
-#' @param epw numeric > 0 distance multiplier for traversing unavailable stands
+#' @param epw numeric > 0 distance multiplier for traversing excluded stands
 #'
 #' @details `epw` values less than 1 will preferentially select excluded stands
 #'   while values greater than 1 avoids excluded stands.
@@ -119,7 +121,7 @@ set_threshold_func <- function(net, include, area_adjust = 0, objective_adjust =
 #' @return cpp graph object
 #' @export
 
-build_graph_func <- function(net, objective_field, sdw=1, epw=1){
+build_graph_func <- function(net, objective_field, sdw=0, epw=0){
   
   # extract adjacency network edge list
   el <- igraph::as_edgelist(net, names=T) %>% 
@@ -133,15 +135,18 @@ build_graph_func <- function(net, objective_field, sdw=1, epw=1){
   el$objective = range01(a + b)
   
   # calculate exclude penalty score for each dyad
-  a <- vertex_attr(net, 'exclude', match(el$from, V(net)$name)) 
-  b <- vertex_attr(net, 'exclude', match(el$to, V(net)$name)) 
-  el$exclude = ifelse(a | b, 1, 0)
+  a <- vertex_attr(net, 'include', match(el$from, V(net)$name)) 
+  b <- vertex_attr(net, 'include', match(el$to, V(net)$name)) 
+  el$exclude = ifelse(a | b, 0, 1)
   
-  # modify distance based on objective
-  el$dist_adj <- el$dist * (1 - el$objective)^sdw
-  
+  # modify distance based on objective (except for excluded stands)
+  el$dist_adj <- el$dist * (1 - el$objective)^(10^sdw)
+                                               
   # modify distance based on exclusion status
-  el$dist_adj <- el$dist_adj * ifelse(el$exclude, epw, 1)
+  el$dist_adj <- el$dist_adj * ifelse(el$exclude, 10^epw, 1)
+
+  # cppdistmat(to, from, dist, node_cnt, to_name, from_name)
+  # cppdistmat(Graph$data[,2], Graph$data[,1], Graph$data[,3], Graph$nbnode, to_id, from_id)
   
   cpp_graph <- makegraph(el[,c('from','to','dist_adj')])
   return(cpp_graph)
@@ -153,12 +158,12 @@ build_graph_func <- function(net, objective_field, sdw=1, epw=1){
 #'
 #' @param cpp_graph graph object 
 #' @param v node id to start building patch
-#' @param patch_area size of patch
+#' @param a_max size of patch
 #'
 #' @return data frame of nearest nodes arranged by distance
 #' @export
 
-build_patch_func <- function(cpp_graph, net, start_node, patch_area, area_slack, c_min=-Inf, c_max=Inf){
+build_patch_func <- function(start_node, cpp_graph, net, a_max, a_min=-Inf, c_max=Inf, c_min=-Inf, c_enforce=TRUE){
   
   # calculate distance matrix using Dijkstra's algorithm
   dmat <- get_distance_matrix(cpp_graph, from=start_node, to=cpp_graph$dict$ref, allcores=FALSE)[1,]
@@ -167,27 +172,33 @@ build_patch_func <- function(cpp_graph, net, start_node, patch_area, area_slack,
   dist_df <- data.frame(
     node = names(dmat), 
     dist = dmat, 
-    area = vertex_attr(net, 'area', match(cpp_graph$dict$ref,V(net)$name)), 
+    area = vertex_attr(net, 'area', match(cpp_graph$dict$ref, V(net)$name)), 
     objective = vertex_attr(net, 'objective', match(cpp_graph$dict$ref,V(net)$name)), 
+    threshold_met = vertex_attr(net, 'exclude', match(cpp_graph$dict$ref,V(net)$name)) != 1,
     row.names = NULL)
   
   # identify nearest nodes up to area limit
-  dist_df <- dist_df[order(dist_df$dist),]
-  dist_df$area_cs <- cumsum(dist_df$area)
-  dist_df$slack_met = abs(dist_df$area_cs - patch_area)/patch_area <= area_slack
-  pnodes <- dist_df[1:which.min(abs(dist_df$area_cs - patch_area)),]
+  dist_df <- dist_df %>% 
+    arrange(dist) %>%
+    filter(!is.na(dist)) %>%
+    mutate(area_cs = cumsum(area)) %>%
+    mutate(area_met = (area_cs <= !!a_max) & (area_cs >= !!a_min)) %>%
+    mutate(objective_cs = cumsum(objective))
 
-  # constraint types:
-  # 0: within area slack
-  # 1: within area slack with constraint
-  # 2: outside area slack due to constraint
-  # 3: outside area slack
+  dist_df <- dist_df %>% 
+    dplyr::relocate(node, dist, 
+                    contains('objective'), contains('area'), 
+                    contains('constraint'), contains('threshold'))
   
+  pnodes <- dist_df[1:which.min(abs(dist_df$area_cs - a_max)),]
+  
+  # evaluate secondary constraint if present
   if(!is.null(vertex_attr(net, 'constraint'))){
-    pnodes$constraint = vertex_attr(net, 'constraint', match(pnodes$node, V(net)$name))
+    pnodes$constraint <- vertex_attr(net, 'constraint', match(pnodes$node, V(net)$name))
     pnodes$constraint_cs <- cumsum(pnodes$constraint)
-    pnodes$constraint_met = pnodes$constraint_cs > c_min &  pnodes$constraint_cs < c_max
-    # pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
+    pnodes$constraint_met <- (pnodes$constraint_cs > c_min) & (pnodes$constraint_cs < c_max)
+    # remove stands that fail constraint 
+    if(c_enforce) pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
   }
   
   return(pnodes)
@@ -200,7 +211,7 @@ build_patch_func <- function(cpp_graph, net, start_node, patch_area, area_slack,
 #' @param cpp_graph cpp graph object
 #' @param net igraph graph object
 #' @param objective_field name of field containing objective values
-#' @param patch_area patch size
+#' @param a_max patch size
 #' @param sample_frac fraction of stands to evaluate
 #'
 #' @details Calculates potential patches for all or fraction of landscape stands
@@ -210,8 +221,8 @@ build_patch_func <- function(cpp_graph, net, start_node, patch_area, area_slack,
 #' @return
 #' @export
 
-  search_best_func <- function(net, cpp_graph, objective_field, patch_area, area_slack, 
-                               c_min=-Inf, c_max=Inf, sample_frac = 1, 
+  search_best_func <- function(net, cpp_graph, objective_field, a_max, a_min, 
+                               c_max=Inf, c_min=-Inf, sample_frac = 1, 
                                return_all=FALSE, show_progress=FALSE, sample_type = 'spatial'){
   
     # sample fraction of total nodes
@@ -226,18 +237,29 @@ build_patch_func <- function(cpp_graph, net, start_node, patch_area, area_slack,
         nodes = V(net)$name[sort(sample(1:length(V(net)$name), sample_n))]
       }
     }
-
+    
     # calculate objective score for all potential patches
     out <- nodes %>% furrr::future_map_dbl(function(i){
-      proj_obj <- -99
+      proj_obj <- NA
       tryCatch({
-        patch <- build_patch_func(cpp_graph, net, i, patch_area, area_slack, c_min=c_min, c_max=c_max)
-        proj_obj <- sum(vertex_attr(net, objective_field, match(patch$node, V(net)$name)))
+        patch <- build_patch_func(i, cpp_graph, net, a_max, a_min, c_max=c_max, c_min=c_min)
+        proj_obj = sum(patch$objective)
+        # assess constraints
+        last <- tail(patch,1)
+        if(!is.null(last$constraint_met)){
+          if(last$area_met & !last$constraint_met) 
+            proj_obj = NA
+          if(!last$area_met & last$constraint_met)
+            proj_obj = NA
+        }
         return(proj_obj)
       }, warning = function(w){}, 
       error = function(e) return(0))
     }, .progress=show_progress, .options = furrr_options(seed = NULL))
 
+    if(sum(!is.na(out)) == 0){
+      stop('No potential patches meet constraints')
+    }
     names(out) <- nodes
     
     if(return_all){
