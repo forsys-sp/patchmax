@@ -221,6 +221,9 @@ patchmax_generator <- R6::R6Class(
         summarize() %>% 
         filter(patch_id != 0)
       
+      exclude = private$..geom %>%
+        filter(patch_id != 0, include == 0)
+      
       plot = ggplot() + 
         geom_sf(data=private$..geom, aes(fill=get(plot_field)), linewidth=0) + 
         scale_fill_gradientn(colors = sf.colors(10)) +
@@ -241,7 +244,8 @@ patchmax_generator <- R6::R6Class(
       if(nrow(patches) > 0){
         plot = plot +
           geom_sf(data=patches, fill=NA, linewidth=1, color='black') +
-          geom_sf_text(data=patches, aes(label=patch_id))
+          geom_sf(data=suppressWarnings(st_centroid(exclude)), shape=4, size=5) +
+          geom_sf_label(data=patches, aes(label=patch_id), label.r = unit(.5, "lines"))
       }
       
       if(return_plot){
@@ -272,9 +276,11 @@ patchmax_generator <- R6::R6Class(
       # record patch id
       m = match(private$..pending_patch$node, vertex_attr(private$..net, private$..param_id_field))
       V(private$..net)$patch_id[m] = patch_id
+      V(private$..net)$include[m] = patch$include
       
       m = match(private$..pending_patch$node, private$..geom %>% pull(private$..param_id_field))
       private$..geom$patch_id[m] = patch_id
+      private$..geom$include[m] = patch$include
       
       message(glue::glue('Patch {patch_id} recorded\n-------------'))
       private$..pending_patch <- NULL
