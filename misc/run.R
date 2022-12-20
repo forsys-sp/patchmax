@@ -1,12 +1,12 @@
 # load required packages
 pacman::p_load(dplyr, sf, ggplot2, R6, assertive,
                igraph, cppRouting, proxy, 
-               furrr, animation, glue, purrr)
+               furrr, animation, glue, purrr, patchmax)
 
 
 # source patchmax, patchmax functions, and example data
-source('misc/patchmax_r6.R')
-source('misc/patchmax_r6_func.R')
+# source('R/patchmax_r6.R')
+# source('R/patchmax_r6_func.R')
 source('misc/patchmax_r6_data.R')
 
 # set number of session to run in parallel
@@ -21,6 +21,17 @@ plan(multisession, workers = 8)
 
 # create new patchmax generator with stand geometry and required field names
 p <- patchmax_generator$new(geom, 'stand_id', 'priority1', 'area_ha', 1000)
+p$params = list(area_min = 500, constraint_field = 'revenue', constraint_max = 10000)
+p$params = list(threshold = 'threshold2 == 1')
+p$params = list(epw = -1)
+p$reset()
+p$search(sample_frac = 1, plot_search = T)
+p$build()$plot(show_seed = T)$record()
+p$simulate(20, sample_frac = 1)
+p$search(1)$build()$plot()
+p$record()
+p$plot()
+
 p$params = list(area_max = 1000, area_min = 500, constraint_field = 'revenue', constraint_max  = 10000)
 p$search(sample_frac = .1, plot_search = T)
 

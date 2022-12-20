@@ -10,13 +10,15 @@
 #' pm$search(sample_frac = 1, plot_search = T)
 #' pm$build()$plot(show_seed = TRUE)$record()
 #'
+#' @import R6
 #' @import dplyr
 #' @import ggplot2
-#' @import igraph
+#' @import cppRouting
+#' @importFrom igraph V vertex_attr
 #'
 #' @export
 
-patchmax_generator <- R6Class(
+patchmax_generator <- R6::R6Class(
   classname = "patch_generator",
   
   # //////////////////////////////////////////////////////////////////////////
@@ -26,11 +28,9 @@ patchmax_generator <- R6Class(
   
   public = list(
     
-    # INITIALIZE METHOD --------------------------------------------------------
-    #' @description 
-    #' Initialize new patchmax object for building patches
-    #' @param geom sf Dataframe-like sf object with geomerty
-    #' @param if_field character Field name containing unique IDs
+    #' @description Initialize new patchmax object for building patches
+    #' @param geom sf Dataframe like sf object with geomerty
+    #' @param id_field character Field name containing unique IDs
     #' @param objective_field character Field name containing objective values
     #' @param area_field character Field name containing area
     #' @param area_max numeric Size of patch
@@ -71,10 +71,9 @@ patchmax_generator <- R6Class(
       }
     },
     
-    # BUILD METHOD --------------------------------------------------------
-    #' @description 
-    #' Build patch at selected node
-    #' @param node character Stand ID used to build patch (optional)
+    
+    #' @description Build patch at selected node
+    #' @param node character. Stand ID used to build patch (optional)
     #' @details If node is NULL, use stand id found during search
     #' 
     build = function(node=NULL){
@@ -115,9 +114,8 @@ patchmax_generator <- R6Class(
       return(invisible(self))
     },
     
-    # SEARCH METHOD --------------------------------------------------------
-    #' @description 
-    #' Search patch origin with highest objective
+    
+    #' @description Search patch origin with highest objective
     #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
     #' @param return_all logical Return search results
     #' @param show_progress logical Show search progress bar
@@ -180,20 +178,22 @@ patchmax_generator <- R6Class(
       return(invisible(self))
     },
     
+    #' @description Search, build, and record multiple patches in sequence
+    #' @param n_projects integer. Number of patches to build
+    #' @param sample_frac numeric. Fraction of stands to evaluate for patches
+    
     simulate = function(n_projects = 1, sample_frac = 0.1){
       for(i in 1:n_projects){
         self$search(sample_frac = sample_frac)$build()$record(patch_id = i) 
       }
     },
     
-    # PLOT METHOD --------------------------------------------------------
-    #' @description
-    #' Plot patch and stand map
+    #' @description Plot patch and stand map
     #' @param plot_field character Field name to plot
     #' @param return_plot logical Return ggplot object
     #' @param enforce_constraint logical Apply secondary constraint
     #' @param show_seed logical Show origin used to build selected patch?
-    #' 
+    
     plot = function(plot_field = NULL, 
                     return_plot = FALSE, 
                     enforce_constraint = TRUE, 
@@ -275,10 +275,8 @@ patchmax_generator <- R6Class(
       return(invisible(self))
     },
     
-    # DESCRIBE METHOD --------------------------------------------------------
     #' @description 
     #' Summarize recorded patches
-    #' 
     describe = function(){
       private$..geom %>% 
         st_drop_geometry() %>% 
@@ -286,10 +284,8 @@ patchmax_generator <- R6Class(
         summarize_if(is.numeric, sum)
     },
     
-    # RESET METHOD --------------------------------------------------------
     #' @description 
     #' Reset recorded patches
-    #' 
     reset = function(){
       message('Selected patches have been deleted')
       private$..geom$patch_id = 0
@@ -302,7 +298,8 @@ patchmax_generator <- R6Class(
   # //////////////////////////////////////////////////////////////////////////
   # PRIVATE ELEMENTS
   # internal aspects of the patchmax generator
-  # //////////////////////////////////////////////////////////////////////////  
+  # ////////////////////////////////////////////////////////////////////////// 
+  
   private = list(
     ..net = NULL,
     ..geom = NULL,
@@ -400,15 +397,21 @@ patchmax_generator <- R6Class(
   # //////////////////////////////////////////////////////////////////////////
   
   active = list(
+    
+    #' @field net Get igraph object. Read only
+    #' 
     net = function(){
       private$..net
     },
+    #' @field geom Get sf geometry object. Read only
     geom = function(){
       private$..geom
     },
+    #' @field best Get pending stand id representing best patch origin. Read only
     best = function(){
       private$..pending_origin
     },
+    #' @field patch Get stands in pending patch. Read only
     patch = function(){
       if(is.null(private$..pending_patch)){
         message('No project selected. Please run pm$build()')
@@ -416,6 +419,7 @@ patchmax_generator <- R6Class(
         private$..pending_patch
       }
     },
+    #' @field id_field Get/set stand ID field
     id_field = function(value){
       if(missing(value)){
         private$..param_id_field
@@ -426,6 +430,7 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
+    #' @field objective_field Get/set objective field
     objective_field = function(value){
       if(missing(value)){
         private$..param_objective_field
@@ -436,6 +441,7 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
+    #' @field area_field Get/set area field
     area_field = function(value){
       if(missing(value)){
         private$..param_area_field
@@ -446,6 +452,7 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
+    #' @field threshold Get/set threshold boolean statement
     threshold = function(value){
       if(missing(value)){
         private$..param_threshold
@@ -455,6 +462,7 @@ patchmax_generator <- R6Class(
         private$..set_threshold()
       }
     },
+    #' @field threshold_area_adjust Get/set fraction of area to count within excluded stands
     threshold_area_adjust = function(value){
       if(missing(value)){
         private$..param_threshold_area_adjust
@@ -464,6 +472,7 @@ patchmax_generator <- R6Class(
         private$..set_threshold()
       }
     },
+    #' @field threshold_objective_adjust Get/set fraction of objective to count within excluded stands
     threshold_objective_adjust = function(value){
       if(missing(value)){
         private$..param_threshold_objective_adjust
@@ -473,6 +482,7 @@ patchmax_generator <- R6Class(
         private$..set_threshold()
       }
     },
+    #' @field constraint_field Get/set secondary constraint field. Optional
     constraint_field = function(value){
       if(missing(value)){
         private$..param_constraint_field
@@ -483,6 +493,7 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
+    #' @field constraint_max Get/set max value for secondary constraint (e.g., max budget)
     constraint_max = function(value){
       if(missing(value)){
         private$..param_constraint_max
@@ -493,6 +504,7 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
+    #' @field constraint_min Get/set min value for secondary constraint
     constraint_min = function(value){
       if(missing(value)){
         private$..param_constraint_min
@@ -503,6 +515,7 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
+    #' @field area_max Get/set max value for area constraint
     area_max = function(value){
       if(missing(value)){
         private$..param_area_max
@@ -514,6 +527,7 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
+    #' @field area_min Get/set min value for area constraint
     area_min = function(value){
       if(missing(value)){
         private$..param_area_min
@@ -525,6 +539,7 @@ patchmax_generator <- R6Class(
         private$..refresh_net_attr()
       }
     },
+    #' @field epw Get/set exclusion penality weight between -1 and 1. Default 0. At 0, patches neither privilege or penalize excluded ares. Values closer to 1 enact a greater cost on projects spanning areas excluded by the project stand threshold. Values less than 0 readily search out excluded areas.
     epw = function(value){
       if(missing(value)){
         private$..param_epw
@@ -535,6 +550,7 @@ patchmax_generator <- R6Class(
         private$..param_epw <- value
       }
     },
+    #' @field sdw Get/set spatial distance weight between -1 and 1. Default 0. Patches are highly constrained by distance at -1 and unconstrained by distance at 1. 
     sdw = function(value){
       if(missing(value)){
         private$..param_sdw
@@ -545,6 +561,7 @@ patchmax_generator <- R6Class(
         private$..param_sdw <- value
       }
     },
+    #' @field params Get/set list of all patch parameters. Arguement is a named list if setting mutiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).
     params = function(value){
       if(missing(value)){
         nm <- names(private)

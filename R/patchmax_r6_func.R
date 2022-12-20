@@ -218,7 +218,6 @@ build_patch_func <- function(start_node, cpp_graph, net, a_max, a_min=-Inf, c_ma
 #'   in order to identify the initial seed that leads to the highest total
 #'   objective score.
 #'
-#' @return
 #' @export
 
   search_best_func <- function(net, cpp_graph, objective_field, a_max, a_min, 
@@ -274,6 +273,7 @@ build_patch_func <- function(start_node, cpp_graph, net, a_max, a_min=-Inf, c_ma
 #' Normalize vector to between 0 and 1
 #'
 #' @param x number or vector to normalize
+#' @export
 
 range01 <- function(x){
   (x-min(x))/(max(x)-min(x))
