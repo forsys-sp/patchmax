@@ -14,7 +14,9 @@
 #' @import dplyr
 #' @import ggplot2
 #' @import cppRouting
-#' @importFrom igraph V vertex_attr
+#' @import sf
+#' @import furrr
+#' @importFrom igraph V V<- vertex_attr graph_from_data_frame edge_attr<- vertex_attr<- delete_vertices E
 #'
 #' @export
 
@@ -48,7 +50,7 @@ patchmax_generator <- R6::R6Class(
         private$..param_area_max = area_max 
         
         # setup key fields in geometry object
-        private$..geom[,id_field] = as.character(dplyr::pull(private$..geom, id_field))
+        private$..geom$stand_id = as.character(dplyr::pull(private$..geom, id_field))
         private$..geom$patch_id = 0
         private$..geom$include = 1
         
@@ -130,15 +132,17 @@ patchmax_generator <- R6::R6Class(
         return_all = TRUE
       }
       
+      nodes <- sample_frac(private$..geom, sample_frac, TRUE)
+      
       search_out <- search_best_func(
         cpp_graph = private$..update_dist(), 
         net = private$..update_net(), 
+        nodes = nodes,
         objective_field = private$..param_objective_field, 
         a_max = private$..param_area_max,
         a_min = private$..param_area_min,
         c_max = private$..param_constraint_max,
         c_min = private$..param_constraint_min,
-        sample_frac = sample_frac,
         return_all = return_all,
         show_progress = show_progress)
       
@@ -184,7 +188,7 @@ patchmax_generator <- R6::R6Class(
     
     simulate = function(n_projects = 1, sample_frac = 0.1){
       for(i in 1:n_projects){
-        self$search(sample_frac = sample_frac)$build()$record(patch_id = i) 
+        self$search(sample_frac = sample_frac)$build()$record() 
       }
     },
     
@@ -203,7 +207,7 @@ patchmax_generator <- R6::R6Class(
         message('No patch currently selected')
       } else {
         patch = private$..geom %>% 
-          dplyr::select(private$..param_id_field) %>% 
+          dplyr::select(stand_id) %>% 
           dplyr::rename(node = 1) %>% 
           inner_join(private$..pending_patch, by='node') %>%
           mutate(include = factor(include)) %>%
@@ -218,7 +222,7 @@ patchmax_generator <- R6::R6Class(
         filter(patch_id != 0)
       
       plot = ggplot() + 
-        geom_sf(data=geom, aes(fill=get(plot_field)), linewidth=0) + 
+        geom_sf(data=private$..geom, aes(fill=get(plot_field)), linewidth=0) + 
         scale_fill_gradientn(colors = sf.colors(10)) +
         guides(fill = guide_legend(plot_field)) +
         theme(legend.position = 'bottom') +
@@ -236,7 +240,7 @@ patchmax_generator <- R6::R6Class(
       
       if(nrow(patches) > 0){
         plot = plot +
-          geom_sf(data=patches, fill=NA, linewidth=.5, color='black') +
+          geom_sf(data=patches, fill=NA, linewidth=1, color='black') +
           geom_sf_text(data=patches, aes(label=patch_id))
       }
       
@@ -266,8 +270,11 @@ patchmax_generator <- R6::R6Class(
       patch <- private$..pending_patch
       
       # record patch id
-      V(private$..net)$patch_id[match(private$..pending_patch$node, V(private$..net)$stand_id)] = patch_id
-      private$..geom$patch_id[match(private$..pending_patch$node, private$..geom$stand_id)] = patch_id
+      m = match(private$..pending_patch$node, vertex_attr(private$..net, private$..param_id_field))
+      V(private$..net)$patch_id[m] = patch_id
+      
+      m = match(private$..pending_patch$node, private$..geom %>% pull(private$..param_id_field))
+      private$..geom$patch_id[m] = patch_id
       
       message(glue::glue('Patch {patch_id} recorded\n-------------'))
       private$..pending_patch <- NULL

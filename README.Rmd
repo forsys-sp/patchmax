@@ -1,6 +1,6 @@
 ---
 title: "Patchmax"
-author: "Pedro Belavenutti"
+author: "Pedro Belavenutti & Cody Evers"
 output: github_document
 ---
 
@@ -9,8 +9,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
  
 <!--- README.md is generated from README.Rmd. Please edit that file -->
-
-
 
 ```{r, include = FALSE}
 devtools::load_all()
@@ -23,10 +21,9 @@ ow = "600"
 
 ## Description
 
-Patchmax is a computational module designed to explore spatially explicit landscape treatment projects. The package can be used to prioritize treatment locations on relatively small landscapes (project level implementation, 1,000 ha) to large landscapes (national forest to multi-regional planning efforts, 1 million ha). Although patchmax was originally designed for hazardous fuel treatment planning in forested systems, it can be applied to fiber production, habitat restoration, and other resource management problems. Patchmax utilizes breadth-first search in the igraph package to sequence stands within the projects. To improve efficiency, the application employs graph theory algorithms combined with  binary searches while running on a parallel computing platform.
+Patchmax is a computational module designed to explore spatially explicit landscape treatment projects. The package can be used to prioritize treatment locations on relatively small landscapes (project level implementation, 1,000 ha) to large landscapes (national forests to multi-regional planning efforts, 1 million ha). Although patchmax was originally designed for hazardous fuel treatment planning in forested systems, it can be applied to fiber production, habitat restoration, and other resource management problems. Patchmax utilizes Djistra's algorithm to sequence stands within the projects based on both adjacency and distance, which is modified according to the model parameters. 
 
 Dependences: R (>= 4.0.3) and packages (igraph, data.table, sf, doParallel, parallel, spdep, pbapply)
-
 
 ## Installation
 The latest official version of the Patchmax package can be installed from GitHub using the following code after we provide your personal access token.
@@ -40,9 +37,52 @@ remotes::install_github("forsys-sp/patchmax", auth_token = 'your_token_here')
 Stand treatment units are represented as polygons in a spatial vector format. Each polygon represents a different treatment unit.
 
 ```{r, eval = FALSE}
-library(Patchmax)
+library(patchmax)
+pm <- patchmax_generator$new(...)
+pm$area_max = 1200
+pm$search()$build()$record()
 ```
 
+First, let's load some example data and map the included fields. To keep things simple, we focus only a subset of the entire study area.
+
+```{r}
+library(dplyr)
+library(sf)
+
+geom <- patchmax::test_forest %>% 
+  filter(row > 20, row <= 40, col > 20, col <= 40)
+
+geom %>% 
+  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]')) %>%
+  plot(max.plot = 20, border=NA)
+```
+
+We can combined these data to create additional fields. For example, let's create a new field called cost, which we'll use later as a secondary constraint building patches.
+
+```{r}
+geom <- geom %>% mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
+plot(geom[,'cost'], border=NA)
+```
+
+Let's setup a new patchmax object called `pm`.
+```{r}
+pm <- patchmax_generator$new(
+  geom = geom, 
+  id_field = 'id', 
+  objective_field = 'p4', 
+  area_field = 'ha', 
+  area_max = 1000)
+
+pm$search()$build()$plot()
+
+pm$params <- list(constraint_field = 'cost', constraint_max = 1000)
+pm$search()
+```
+To get a better sense of how the patch is selected, let's look at the search results in more detail. 
+
+```{r}
+pm$search(sample_frac = 1, plot_search = T)
+```
 
 ## Studies
 Belavenutti, Pedro, Alan A. Ager, Michelle A. Day, and Woodam Chung. 2022. Designing forest restoration projects to optimize the application of broadcast burning. Ecological Economics.

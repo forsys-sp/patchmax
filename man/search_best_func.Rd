@@ -7,15 +7,14 @@
 search_best_func(
   net,
   cpp_graph,
+  nodes = NULL,
   objective_field,
   a_max,
   a_min,
   c_max = Inf,
   c_min = -Inf,
-  sample_frac = 1,
   return_all = FALSE,
-  show_progress = FALSE,
-  sample_type = "spatial"
+  show_progress = FALSE
 )
 }
 \arguments{

@@ -1,4 +1,23 @@
-# TODO setup patchmax oob to be called by simulate projects
+#' Simulate landscape projects
+#' @param St_id Numeric vector of integer stands IDs
+#' @param St_adj Adjacency input graph created through calculate_adj or read_adj functions. The graph vertices must be named.
+#' @param St_area Numeric vector of stands area
+#' @param St_objective Numeric vector of stands objective
+#' @param St_seed Numeric vector of stands IDs seeds. If NULL, then stand seed is not applied.
+#' @param P_size Project size
+#' @param P_size_slack Project size slack, between 0 and 1, Where 0 means no deviation.
+#' @param P_number Number of projects to simulate
+#' @param St_threshold Numeric vector of stands threshold value.Coupled with St_threshold_value. If NULL, then stand threshold is not applied.
+#' @param St_threshold_value Stands threshold lower value.
+#' @param St_distances Stand distance table. Coupled with DW parameter. If NULL, then stand distance weight function is not applied.
+#' @param SDW Stand distance weight parameter. If NULL, then the value = 1 is used by default.
+#' @param P_constraint Numeric vector of stands value for the project constraint.Coupled with P_constraint_max_value and P_constraint_min_value. If NULL, then project constraint is not applied.
+#' @param P_constraint_max_value Project constraint upper value.
+#' @param P_constraint_min_value Project constraint lower value.
+#' @param Candidate_min_size Minimal size for project coded with types 2 and 3. If NULL, then the value = ‘0.25*P_size’ is used by default. Project type codes interpret if the project is valid (i.e. if P_size apply), constrained (i.e. if P_constraint apply) or none of them. Where type 0 are valid non-constrained projects (i.e. only P_size apply), type 1 are valid constrained projects (i.e. P_size and P_constraint apply), type 2 are invalid constrained projects (i.e. P_size does not apply but P_constraint apply) and type 3 are non-optimized projects that can be invalid and/or non-constrained (i.e. P_size and/or P_constraint do not apply).
+#'
+#' @return matrix containing stand id, stand count, objective score, and type where type = 0 are valid non-contained projects, type = 1 are valid constrained projects, type = 2 are invalid constrained projects, and type == 3 are invalid and non-constrained
+#' @export
 
 simulate_projects <- function(
     geom,                             # new
@@ -6,7 +25,7 @@ simulate_projects <- function(
     St_adj,                           # deleted
     St_area,                          # add to geom / overwrite
     St_objective,                     # add to geom / overwrite
-    St_seed = NULL,                   # ???
+    St_seed = NULL,                   # deleted
     P_size,                           # transfer
     P_size_slack = 0.05,              # mutate to min project area
     P_size_ceiling = Inf,             # not required: to delete
@@ -20,16 +39,28 @@ simulate_projects <- function(
     P_constraint_min_value = -Inf,    # 
     Candidate_min_size = NULL         # deleted
 ){
-  dat <- data.frame(
-    St_id = St_id,
-    St_area = St_area,
-    St_objective = St_objective,
-    P_constraint = P_constraint)
-    pm <- pm$initialize(geom, St_id, ) 
   
+  geom_s <- geom
+  geom_s$St_id = St_id
+  geom_s$St_area = St_area
+  geom_s$St_objective = St_objective
+  geom_s$P_constraint = P_constraint
+  
+  patchmax <- patchmax_generator$new(geom, 'St_id', 'St_objective', 'St_area', P_size)
+  patchmax$params <- list(
+    area_min = P_size - (P_size * P_size_slack),
+    sdw = SDW,
+    threshold = paste0(St_threshold, ' >= ', St_threshold_value),
+    constraint_field = 'P_constraint', 
+    constraint_max = P_constraint_max_value,
+    constraint_min = P_constraint_min_value)
+  
+  patchmax$simulate(P_number)
 }
 
-#' Modified version of Patchmax::calculate_adj that calculates edgewise distances
+#.....................................................................
+
+#' Estimates stand adjacency and calculates edgewise distances
 #'
 #' @param shp sf-type geometry with attributes 
 #' @param St_id vector of sf feature ideas (i.e., the stand id)
@@ -37,18 +68,16 @@ simulate_projects <- function(
 #' @param calc_dist logical for calculating edgewise distance in adjacency network
 #'
 #' @return adjacency network saved as an igraph network object
-
 #' @export
-
-#.....................................................................
 
 calc_adj_network_func <- function(shp, St_id, buf_dist = 1, calc_dist = FALSE) {
   
   # check overlap between buffered geometry to estimate adjacency
-  shp_buf <- shp %>% sf::st_buffer(dist = buf_dist)
-  adj <- sf::st_overlaps(shp_buf, sparse = TRUE) %>% data.frame()
+  # shp_buf <- shp %>% sf::st_buffer(dist = buf_dist)
+  # adj <- sf::st_overlaps(shp_buf, sparse = TRUE) %>% data.frame()
+  adj <- sf::st_touches(shp, sparse = TRUE) %>% data.frame()
   net <- data.frame(A = St_id[adj$row.id], B = St_id[adj$col.id]) %>%
-    igraph::graph_from_data_frame(directed = TRUE)
+    graph_from_data_frame(directed = TRUE)
   
   if(calc_dist){
     
@@ -110,16 +139,14 @@ set_threshold_func <- function(net, include, area_adjust = 0, objective_adjust =
 #' Build graph object used to calculate patch
 #'
 #' @param net igraph object
-#' @param obj name of variable containing objective
-#' @param sdw numeric >= 0 controlling flexibility; 0 negates any adjustment
-#'   related to the objective.
-#' @param epw numeric > 0 distance multiplier for traversing excluded stands
+#' @param objective_field name of variable containing objective
+#' @param sdw numeric between -1 and 1 controlling flexibility
+#' @param epw numeric between -1 and 1 distance multiplier for traversing excluded stands
 #'
 #' @details `epw` values less than 1 will preferentially select excluded stands
 #'   while values greater than 1 avoids excluded stands.
 #'
 #' @return cpp graph object
-#' @export
 
 build_graph_func <- function(net, objective_field, sdw=0, epw=0){
   
@@ -156,12 +183,16 @@ build_graph_func <- function(net, objective_field, sdw=0, epw=0){
 
 #' Build patch of specified size while minimizing modified distance costs
 #'
-#' @param cpp_graph graph object 
-#' @param v node id to start building patch
-#' @param a_max size of patch
+#' @param start_node character. Node id to start building patch
+#' @param cpp_graph graph object built with cppRouting
+#' @param net igraph Adjacency network with stand attributes
+#' @param a_max numeric. Target (i.e., maximum) size of patch
+#' @param a_min numeric. Mininmum size of patch
+#' @param c_max numeric. Maximum secondary constraint total for patch
+#' @param c_min numeric. Minimum secondary constraint total for patch
+#' @param c_enforce logical. Should patches outside of constraint be excluded?
 #'
 #' @return data frame of nearest nodes arranged by distance
-#' @export
 
 build_patch_func <- function(start_node, cpp_graph, net, a_max, a_min=-Inf, c_max=Inf, c_min=-Inf, c_enforce=TRUE){
   
@@ -198,10 +229,35 @@ build_patch_func <- function(start_node, cpp_graph, net, a_max, a_min=-Inf, c_ma
     pnodes$constraint_cs <- cumsum(pnodes$constraint)
     pnodes$constraint_met <- (pnodes$constraint_cs > c_min) & (pnodes$constraint_cs < c_max)
     # remove stands that fail constraint 
-    if(c_enforce) pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
+    if(c_enforce){
+      pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
+    }
   }
   
   return(pnodes)
+}
+
+#.....................................................................
+
+#' Samples stands on regular spatial grid
+#'
+#' @param geom sf. Stand geometry
+#' @param sample_frac numeric. Fraction of stands to evaluate
+#' @param spatial_grid logical. Sample at regular spatial intervals?
+
+sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
+  
+  # sample fraction of total nodes
+  if(sample_frac > 0 & sample_frac <= 1){
+    sample_n = round(nrow(geom) * sample_frac)
+    # sample using regular spatial grid or as a simple random sample
+    if(spatial_grid){
+      pt_grd = sf::st_sample(geom, size = sample_n, type = 'regular')
+      nodes <- sf::st_join(st_as_sf(pt_grd), geom)$stand_id
+    } else {
+      nodes = geom$stand_id[sort(sample(1:nrow(geom), sample_n))]
+    }
+  }
 }
 
 #.....................................................................
@@ -218,23 +274,11 @@ build_patch_func <- function(start_node, cpp_graph, net, a_max, a_min=-Inf, c_ma
 #'   in order to identify the initial seed that leads to the highest total
 #'   objective score.
 #'
-#' @export
 
-  search_best_func <- function(net, cpp_graph, objective_field, a_max, a_min, 
-                               c_max=Inf, c_min=-Inf, sample_frac = 1, 
-                               return_all=FALSE, show_progress=FALSE, sample_type = 'spatial'){
+  search_best_func <- function(net, cpp_graph, nodes = NULL, objective_field, a_max, a_min, c_max=Inf, c_min=-Inf, return_all=FALSE, show_progress=FALSE){
   
-    # sample fraction of total nodes
-    if(sample_frac > 0 & sample_frac <= 1){
-      sample_n = round(igraph::vcount(net) * sample_frac)
-      # sample using regular spatial grid or as a simple random sample
-      if(sample_type == 'spatial'){
-        geom_s = geom %>% dplyr::filter(stand_id %in% V(net)$name)
-        pt_grd = sf::st_sample(geom_s, size = sample_n, type = 'regular')
-        nodes <- sf::st_join(st_as_sf(pt_grd), geom)$stand_id
-      } else {
-        nodes = V(net)$name[sort(sample(1:length(V(net)$name), sample_n))]
-      }
+    if(is.null(nodes)){
+      nodes = V(net)$name
     }
     
     # calculate objective score for all potential patches

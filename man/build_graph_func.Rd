@@ -9,12 +9,11 @@ build_graph_func(net, objective_field, sdw = 0, epw = 0)
 \arguments{
 \item{net}{igraph object}
 
-\item{sdw}{numeric >= 0 controlling flexibility; 0 negates any adjustment
-related to the objective.}
+\item{objective_field}{name of variable containing objective}
 
-\item{epw}{numeric > 0 distance multiplier for traversing excluded stands}
+\item{sdw}{numeric between -1 and 1 controlling flexibility}
 
-\item{obj}{name of variable containing objective}
+\item{epw}{numeric between -1 and 1 distance multiplier for traversing excluded stands}
 }
 \value{
 cpp graph object

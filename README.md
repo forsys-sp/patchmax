@@ -1,6 +1,6 @@
 Patchmax
 ================
-Pedro Belavenutti
+Pedro Belavenutti & Cody Evers
 
 <!--- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -11,15 +11,13 @@ Pedro Belavenutti
 Patchmax is a computational module designed to explore spatially
 explicit landscape treatment projects. The package can be used to
 prioritize treatment locations on relatively small landscapes (project
-level implementation, 1,000 ha) to large landscapes (national forest to
+level implementation, 1,000 ha) to large landscapes (national forests to
 multi-regional planning efforts, 1 million ha). Although patchmax was
 originally designed for hazardous fuel treatment planning in forested
 systems, it can be applied to fiber production, habitat restoration, and
-other resource management problems. Patchmax utilizes breadth-first
-search in the igraph package to sequence stands within the projects. To
-improve efficiency, the application employs graph theory algorithms
-combined with binary searches while running on a parallel computing
-platform.
+other resource management problems. Patchmax utilizes Djistra’s
+algorithm to sequence stands within the projects based on both adjacency
+and distance, which is modified according to the model parameters.
 
 Dependences: R (\>= 4.0.3) and packages (igraph, data.table, sf,
 doParallel, parallel, spdep, pbapply)
@@ -41,8 +39,42 @@ Stand treatment units are represented as polygons in a spatial vector
 format. Each polygon represents a different treatment unit.
 
 ``` r
-library(Patchmax)
+library(patchmax)
+
+pm <- patchmax_generator$new(...)
+
+pm$area_max = 1200
+
+pm$search()$build()$record()
 ```
+
+First, let’s load some example data and map the included fields. To keep
+things simple, we focus only a subset of the entire study area.
+
+``` r
+library(dplyr)
+library(sf)
+
+geom <- patchmax::test_forest %>% 
+  filter(row > 20, row <= 40, col > 20, col <= 40)
+
+geom %>% 
+  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]')) %>%
+  plot(max.plot = 20, border=NA)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+We can combined these data to create additional fields. For example,
+let’s create a new field called cost, which we’ll use later as a
+secondary constraint building patches.
+
+``` r
+geom <- geom %>% mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
+plot(geom[,'cost'], border=NA)
+```
+
+![](README_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
 ## Studies
 

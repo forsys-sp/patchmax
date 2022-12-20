@@ -16,11 +16,21 @@ build_patch_func(
 )
 }
 \arguments{
-\item{cpp_graph}{graph object}
+\item{start_node}{character. Node id to start building patch}
 
-\item{a_max}{size of patch}
+\item{cpp_graph}{graph object built with cppRouting}
 
-\item{v}{node id to start building patch}
+\item{net}{igraph Adjacency network with stand attributes}
+
+\item{a_max}{numeric. Target (i.e., maximum) size of patch}
+
+\item{a_min}{numeric. Mininmum size of patch}
+
+\item{c_max}{numeric. Maximum secondary constraint total for patch}
+
+\item{c_min}{numeric. Minimum secondary constraint total for patch}
+
+\item{c_enforce}{logical. Should patches outside of constraint be excluded?}
 }
 \value{
 data frame of nearest nodes arranged by distance

@@ -2,7 +2,7 @@
 % Please edit documentation in R/patchmax_r6_func.R
 \name{calc_adj_network_func}
 \alias{calc_adj_network_func}
-\title{Modified version of Patchmax::calculate_adj that calculates edgewise distances}
+\title{Estimates stand adjacency and calculates edgewise distances}
 \usage{
 calc_adj_network_func(shp, St_id, buf_dist = 1, calc_dist = FALSE)
 }
@@ -19,5 +19,5 @@ calc_adj_network_func(shp, St_id, buf_dist = 1, calc_dist = FALSE)
 adjacency network saved as an igraph network object
 }
 \description{
-Modified version of Patchmax::calculate_adj that calculates edgewise distances
+Estimates stand adjacency and calculates edgewise distances
 }
