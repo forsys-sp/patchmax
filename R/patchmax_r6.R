@@ -16,6 +16,8 @@
 #' @import cppRouting
 #' @import sf
 #' @import furrr
+#' @import assertive
+#' @importFrom future plan multisession
 #' @importFrom igraph V V<- vertex_attr graph_from_data_frame edge_attr<- vertex_attr<- delete_vertices E
 #'
 #' @export
@@ -95,27 +97,32 @@ patchmax_generator <- R6::R6Class(
         c_max = private$..param_constraint_max,
         c_min = private$..param_constraint_min)
       
-      #evaluate patch here
-      summarize_patch <- function(){
-        table(patch$constraint_met)
-        patch[1:max(which(patch$constraint_met == TRUE)),] %>% 
-          dplyr::select(matches('^area$|^objective$|^constraint$|^include$')) %>%
-          summarize_if(is.numeric, sum)
-      }
       
-      # append auxiliary data
+      # append auxiliary stand data
       patch_dat <- vertex_attr(private$..net) %>% 
-        dplyr::select(node = name, private$..param_objective_field, include)
+        dplyr::select(node = name, private$..param_objective_field, include, original_area = area)
+      
       patch <- dplyr::left_join(patch, patch_dat, by='node')
       
-      private$..pending_patch <- patch
+      private$..pending_patch_stands <- patch
       
-      message(glue::glue('Patch stats: start {patch$node[1]}, area {round(sum(patch$area),3)}, score {round(sum(patch$objective),3)}, constraint {round(sum(patch$constraint),3)}, excluded {100-round(sum(patch$include)/nrow(patch)*100)}%'))
-      message(glue::glue('Constraints met: area {patch$area_met[nrow(patch)]}, secondary: {patch$constraint_met[nrow(patch)]}'))
+      stats = data.frame(
+        start = patch$node[1], 
+        area = round(sum(patch$area),3),
+        coverage = round(sum(patch$original_area),3),
+        objective = round(sum(patch$objective),3),
+        constraint = round(sum(patch$constraint),3),
+        excluded = 100-round(sum(patch$include)/nrow(patch)*100),
+        area_met = patch$area_met[nrow(patch)],
+        constraint_met = patch$area_met[nrow(patch)])
+      
+      private$..pending_patch_stats = stats
+      
+      message(glue::glue('Patch stats: start {stats$start}, area {stats$area}, score {stats$objective}, constraint {stats$constraint}, excluded {stats$excluded}%'))
+      message(glue::glue('Constraints met: area {stats$area_met}, secondary: {stats$constraint_met}'))
       
       return(invisible(self))
     },
-    
     
     #' @description Search patch origin with highest objective
     #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
@@ -203,13 +210,13 @@ patchmax_generator <- R6::R6Class(
                     enforce_constraint = TRUE, 
                     show_seed = FALSE){
       
-      if(is.null(private$..pending_patch)){
+      if(is.null(private$..pending_patch_stands)){
         message('No patch currently selected')
       } else {
         patch = private$..geom %>% 
           dplyr::select(stand_id) %>% 
           dplyr::rename(node = 1) %>% 
-          inner_join(private$..pending_patch, by='node') %>%
+          inner_join(private$..pending_patch_stands, by='node') %>%
           mutate(include = factor(include)) %>%
           arrange(dist)
       }
@@ -231,7 +238,7 @@ patchmax_generator <- R6::R6Class(
         theme(legend.position = 'bottom') +
         theme_void() 
       
-      if(!is.null(private$..pending_patch)){
+      if(!is.null(private$..pending_patch_stands)){
         plot = plot + 
           geom_sf(data=suppressWarnings(st_centroid(patch)), aes(shape=include), size=5) +
           scale_shape_manual(values=c(4,16), breaks=c(0,1))
@@ -263,7 +270,7 @@ patchmax_generator <- R6::R6Class(
     #' @param enforce_constraint logical Apply secondary constraint
     #' 
     record = function(patch_id = NULL, enforce_constraint = TRUE){
-      if(is.null(private$..pending_patch))
+      if(is.null(private$..pending_patch_stands))
         stop('No patch. Run search or select first.')
       
       # generate patch id if missing
@@ -271,19 +278,24 @@ patchmax_generator <- R6::R6Class(
         patch_id = max(V(private$..net)$patch_id) + 1
       }
       
-      patch <- private$..pending_patch
+      patch_stats <- data.frame(patch_id = patch_id, private$..pending_patch_stats)
+      patch_stands <- data.frame(patch_id = patch_id, private$..pending_patch_stands)
+
+      private$..record_patch_stats <- bind_rows(private$..record_patch_stats, patch_stats)
+      private$..record_patch_stands <- bind_rows(private$..record_patch_stands, patch_stands)
       
       # record patch id
-      m = match(private$..pending_patch$node, vertex_attr(private$..net, private$..param_id_field))
+      m = match(private$..pending_patch_stands$node, vertex_attr(private$..net, private$..param_id_field))
       V(private$..net)$patch_id[m] = patch_id
-      V(private$..net)$include[m] = patch$include
+      V(private$..net)$include[m] = patch_stands$include
       
-      m = match(private$..pending_patch$node, private$..geom %>% pull(private$..param_id_field))
+      m = match(private$..pending_patch_stands$node, private$..geom %>% pull(private$..param_id_field))
       private$..geom$patch_id[m] = patch_id
-      private$..geom$include[m] = patch$include
+      private$..geom$include[m] = patch_stands$include
       
       message(glue::glue('Patch {patch_id} recorded\n-------------'))
-      private$..pending_patch <- NULL
+      private$..pending_patch_stands <- NULL
+      private$..pending_patch_stats <- NULL
       
       return(invisible(self))
     },
@@ -303,7 +315,10 @@ patchmax_generator <- R6::R6Class(
       message('Selected patches have been deleted')
       private$..geom$patch_id = 0
       V(private$..net)$patch_id = 0
-      private$..pending_patch = NULL
+      private$..record_patch_stands = NULL
+      private$..record_patch_stats = NULL
+      private$..pending_patch_stands = NULL
+      private$..pending_patch_stats = NULL
       private$..pending_origin = NULL
     }
   ),
@@ -330,10 +345,11 @@ patchmax_generator <- R6::R6Class(
     ..param_constraint_min = -Inf,
     ..param_sdw = 0,
     ..param_epw = 0,
-    ..pending_patch = NULL,
+    ..pending_patch_stands = NULL,
+    ..pending_patch_stats = NULL,
     ..pending_origin = NULL,
-    ..record_stands = NULL,
-    ..record_patches = NULL,
+    ..record_patch_stands = NULL,
+    ..record_patch_stats = NULL,
 
     # build cpp graph object     
     ..update_dist = function(){
@@ -424,13 +440,21 @@ patchmax_generator <- R6::R6Class(
     best = function(){
       private$..pending_origin
     },
-    #' @field patch Get stands in pending patch. Read only
-    patch = function(){
-      if(is.null(private$..pending_patch)){
-        message('No project selected. Please run pm$build()')
-      } else {
-        private$..pending_patch
-      }
+    #' @field pending_stands Get stands in pending patch. Read only
+    pending_stands = function(){
+      private$..pending_patch_stands
+    },
+    #' @field pending_patch Get pending patch stats. Read only
+    pending_patch = function(){
+      private$..pending_patch_stats
+    },
+    #' @field stand_record Get list of recorded stands
+    patch_stands = function(){
+      private$..record_patch_stands
+    },
+    #' @field patch_record Get list of recorded patches
+    patch_stats = function(){
+      private$..record_patch_stats
     },
     #' @field id_field Get/set stand ID field
     id_field = function(value){

@@ -5,7 +5,7 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.path = 'man/figures/')
 ```
  
 <!--- README.md is generated from README.Rmd. Please edit that file -->
@@ -26,6 +26,7 @@ Patchmax is a computational module designed to explore spatially explicit landsc
 Dependences: R (>= 4.0.3) and packages (igraph, data.table, sf, doParallel, parallel, spdep, pbapply)
 
 ## Installation
+
 The latest official version of the Patchmax package can be installed from GitHub using the following code after we provide your personal access token.
 
 ```{r, eval = FALSE}
@@ -45,7 +46,7 @@ pm$search()$build()$record()
 
 First, let's load some example data and map the included fields. To keep things simple, we focus only a subset of the entire study area.
 
-```{r}
+```{r, map_attributes, warning=FALSE}
 library(dplyr)
 library(sf)
 
@@ -64,7 +65,8 @@ geom <- geom %>% mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
 plot(geom[,'cost'], border=NA)
 ```
 
-Let's setup a new patchmax object called `pm`.
+Patchmax is written as R6 class, which uses a slightly different syntax the functional programming design used in most R functions. To use patchmax, we first create a patchmax object called `pm` using the new method in the patchmax_generator class. `print(pm)` shows how the object is structured into public and private components. Several of the public elements are called active bindings, which is used to get and set private elements under very specific conditions. The private elements cannot be directly access or changed from the outside.
+
 ```{r}
 pm <- patchmax_generator$new(
   geom = geom, 
@@ -72,15 +74,20 @@ pm <- patchmax_generator$new(
   objective_field = 'p4', 
   area_field = 'ha', 
   area_max = 1000)
-
-pm$search()$build()$plot()
-
-pm$params <- list(constraint_field = 'cost', constraint_max = 1000)
-pm$search()
 ```
+
+The core purpose of patchmax is build spatial contiguous patches that maximizes some objective given some maximum size constraint. The example below shows how this is done over a series of steps: (1) patchmax searches for the best place, (2) builds that patch, (3) plots the patch, (4) records the patch, (5) describe the patch statistics.
+
+```{r, basic_example}
+pm$search()
+pm$build()
+pm$plot()
+```
+Note that the same set of sequence of steps can be chained together into a single line: `pm$search()$build$plot()`, which shows how multiple actions can be combined in different ways to produce different results.
+
 To get a better sense of how the patch is selected, let's look at the search results in more detail. 
 
-```{r}
+```{r, search_example}
 pm$search(sample_frac = 1, plot_search = T)
 ```
 

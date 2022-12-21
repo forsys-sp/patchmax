@@ -80,3 +80,13 @@ pm2$simulate(10, 1)
 pm2$plot()
 pm2$search(1, plot_search = T)
 pm2$build()
+
+
+future::plan(future::multisession, workers = 8)
+tictoc::tic()
+pm$reset()
+pm$simulate(20, 1)
+tictoc::toc()
+pm$plot()
+
+# 1 = 34 sec; 4 = 15 sec
