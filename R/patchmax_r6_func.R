@@ -70,12 +70,13 @@ simulate_projects <- function(
 #' @return adjacency network saved as an igraph network object
 #' @export
 
-calc_adj_network_func <- function(shp, St_id, buf_dist = 1, calc_dist = FALSE) {
+calc_adj_network_func <- function(shp, St_id, calc_dist = FALSE) {
   
   # check overlap between buffered geometry to estimate adjacency
   # shp_buf <- shp %>% sf::st_buffer(dist = buf_dist)
   # adj <- sf::st_overlaps(shp_buf, sparse = TRUE) %>% data.frame()
-  adj <- sf::st_touches(shp, sparse = TRUE) %>% data.frame()
+  # adj <- sf::st_touches(shp, sparse = TRUE) %>% data.frame()
+  adj <- st_rook(shp) %>% data.frame()
   net <- data.frame(A = St_id[adj$row.id], B = St_id[adj$col.id]) %>%
     graph_from_data_frame(directed = TRUE)
   
@@ -83,12 +84,15 @@ calc_adj_network_func <- function(shp, St_id, buf_dist = 1, calc_dist = FALSE) {
     
     # calculate centroid coordinates
     suppressWarnings({
-      xy <- st_centroid(shp) %>% 
+      xy <- shp %>% 
+        st_centroid() %>% 
         st_coordinates() %>% 
         as.data.frame()
+      xy$name <- St_id
     })
-    V(net)$X <- xy$X
-    V(net)$Y <- xy$Y
+    
+    V(net)$X <- xy$X[match(V(net)$name, xy$name)]
+    V(net)$Y <- xy$Y[match(V(net)$name, xy$name)]
     
     # extract edge list 
     el <- igraph::as_edgelist(net, names=T) %>% 
@@ -97,8 +101,8 @@ calc_adj_network_func <- function(shp, St_id, buf_dist = 1, calc_dist = FALSE) {
     
     # calculate pairwise distances among dyads
     edge_attr(net) <- list(dist = proxy::dist(
-      x = xy[match(el$from,St_id),], 
-      y = xy[match(el$to,St_id),], 
+      x = xy[match(el$from, xy$name),c('X','Y')], 
+      y = xy[match(el$to, xy$name),c('X','Y')], 
       pairwise = T))
   }
   
@@ -159,7 +163,8 @@ build_graph_func <- function(net, objective_field, sdw=0, epw=0){
   # calculate average objective score for each dyad
   a <- vertex_attr(net, objective_field, match(el$from, V(net)$name)) 
   b <- vertex_attr(net, objective_field, match(el$to, V(net)$name)) 
-  el$objective = range01(a + b)
+  # el$objective = range01(a + b)
+  el$objective = (a+b)/2
   
   # calculate exclude penalty score for each dyad
   a <- vertex_attr(net, 'include', match(el$from, V(net)$name)) 
@@ -321,4 +326,9 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
 
 range01 <- function(x){
   (x-min(x))/(max(x)-min(x))
-  }
+}
+
+st_rook = function(a, b = a){
+  st_relate(a, b, pattern = "F***1****")
+}
+

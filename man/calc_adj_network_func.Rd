@@ -4,16 +4,16 @@
 \alias{calc_adj_network_func}
 \title{Estimates stand adjacency and calculates edgewise distances}
 \usage{
-calc_adj_network_func(shp, St_id, buf_dist = 1, calc_dist = FALSE)
+calc_adj_network_func(shp, St_id, calc_dist = FALSE)
 }
 \arguments{
 \item{shp}{sf-type geometry with attributes}
 
 \item{St_id}{vector of sf feature ideas (i.e., the stand id)}
 
-\item{buf_dist}{numeric distance used to buffer geometry and calculate adjacency}
-
 \item{calc_dist}{logical for calculating edgewise distance in adjacency network}
+
+\item{buf_dist}{numeric distance used to buffer geometry and calculate adjacency}
 }
 \value{
 adjacency network saved as an igraph network object

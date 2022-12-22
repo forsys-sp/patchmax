@@ -22,8 +22,8 @@
 #'
 #' @export
 
-patchmax_generator <- R6::R6Class(
-  classname = "patch_generator",
+patchmax <- R6::R6Class(
+  classname = "patchmax",
   
   # //////////////////////////////////////////////////////////////////////////
   # PUBLIC ELEMENTS
@@ -43,7 +43,7 @@ patchmax_generator <- R6::R6Class(
       if(!missing(geom)){
         
         # save geometry
-        private$..geom <- geom
+        private$..geom <- geom %>% mutate(!!id_field := as.character(get(id_field)))
         
         # parameters
         private$..param_id_field = id_field
@@ -58,12 +58,14 @@ patchmax_generator <- R6::R6Class(
         
         # build adjacency network
         private$..net <- calc_adj_network_func(
-          shp = geom, 
-          St_id = dplyr::pull(geom, id_field), 
+          shp = private$..geom, 
+          St_id = dplyr::pull(private$..geom, id_field), 
           calc_dist = TRUE)
         
         # add addition fields to adjacency network
-        vertex_attr(private$..net) <- bind_cols(vertex_attr(private$..net), st_drop_geometry(geom))
+        a <- vertex_attr(private$..net) %>% data.frame()
+        b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
+        vertex_attr(private$..net) <- left_join(a, b, by='name')
         vertex_attr(private$..net, name = 'exclude') = 0
         vertex_attr(private$..net, name = 'patch_id') = 0
         vertex_attr(private$..net, name = 'include') = 1
@@ -130,7 +132,7 @@ patchmax_generator <- R6::R6Class(
     #' @param show_progress logical Show search progress bar
     #' @param plot_search logical Map search results
     #' 
-    search = function(sample_frac=0.1, return_all=FALSE, show_progress=FALSE, plot_search=FALSE){
+    search = function(sample_frac=0.1, plot_search=FALSE, return_all=FALSE, show_progress=FALSE){
       
       private$..check_req_fields()
       private$..update_dist()
@@ -159,10 +161,12 @@ patchmax_generator <- R6::R6Class(
       
       # plot search results (mainly for debugging)
       if(plot_search){
+        search_dat <- data.frame(names(search_out), search_out = as.numeric(search_out)) %>%
+          rename(!!private$..param_id_field := 1)
         pdat <- dplyr::inner_join(
           x = private$..geom, 
-          y = data.frame(search_out) %>% tibble::rownames_to_column(), 
-          by=c('stand_id'='rowname'))
+          y = search_dat, 
+          by=private$..param_id_field)
         origin <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
         p1 <- ggplot() + 
           geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
@@ -173,7 +177,7 @@ patchmax_generator <- R6::R6Class(
         p2 <- data.frame(score = sort(pdat$search_out, decreasing = T)) %>% 
           dplyr::mutate(rank = 1:n()) %>%
           ggplot(aes(x=rank, y=score, color=score)) + 
-          geom_point(size=5, shape=15) +
+          geom_point(size=2, shape=15) +
           scale_color_gradientn(colors = sf.colors(10)) + 
           theme_minimal()
         print(cowplot::plot_grid(p1, p2, ncol = 1))
@@ -210,15 +214,14 @@ patchmax_generator <- R6::R6Class(
                     enforce_constraint = TRUE, 
                     show_seed = FALSE){
       
-      if(is.null(private$..pending_patch_stands)){
-        message('No patch currently selected')
-      } else {
+      if(!is.null(private$..pending_patch_stands)){
         patch = private$..geom %>% 
           dplyr::select(stand_id) %>% 
           dplyr::rename(node = 1) %>% 
           inner_join(private$..pending_patch_stands, by='node') %>%
           mutate(include = factor(include)) %>%
           arrange(dist)
+        patch_perim <- patch %>% summarize()
       }
       
       plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
@@ -226,7 +229,9 @@ patchmax_generator <- R6::R6Class(
       patches = private$..geom %>% 
         group_by(patch_id) %>% 
         summarize() %>% 
-        filter(patch_id != 0)
+        filter(patch_id != 0) %>%
+        st_buffer(-200) %>%
+        st_buffer(100)
       
       exclude = private$..geom %>%
         filter(patch_id != 0, include == 0)
@@ -240,8 +245,9 @@ patchmax_generator <- R6::R6Class(
       
       if(!is.null(private$..pending_patch_stands)){
         plot = plot + 
-          geom_sf(data=suppressWarnings(st_centroid(patch)), aes(shape=include), size=5) +
-          scale_shape_manual(values=c(4,16), breaks=c(0,1))
+          geom_sf(data=patch_perim, fill=NA, linewidth=2, color='black') +
+          # geom_sf(data=suppressWarnings(st_centroid(patch)), aes(shape=include), size=5) +
+          scale_shape_manual(values=c(4,1), breaks=c(0,1))
         if(show_seed){
           node_0 = suppressWarnings(st_centroid(patch[patch$dist == 0,]))
           plot = plot + geom_sf(data = node_0, color='black', size=5, shape=15)
@@ -250,8 +256,8 @@ patchmax_generator <- R6::R6Class(
       
       if(nrow(patches) > 0){
         plot = plot +
-          geom_sf(data=patches, fill=NA, linewidth=1, color='black') +
-          geom_sf(data=suppressWarnings(st_centroid(exclude)), shape=4, size=5) +
+          geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
+          geom_sf(data=suppressWarnings(st_centroid(exclude)), shape=4, size=3) +
           geom_sf_label(data=patches, aes(label=patch_id), label.r = unit(.5, "lines"))
       }
       
@@ -263,7 +269,6 @@ patchmax_generator <- R6::R6Class(
       return(invisible(self))
     },
     
-    # RECORD METHOD --------------------------------------------------------
     #' @description 
     #' Record selected patch
     #' @param patch_id integer/character Patch name. If null, add one to highest
@@ -285,7 +290,7 @@ patchmax_generator <- R6::R6Class(
       private$..record_patch_stands <- bind_rows(private$..record_patch_stands, patch_stands)
       
       # record patch id
-      m = match(private$..pending_patch_stands$node, vertex_attr(private$..net, private$..param_id_field))
+      m = match(private$..pending_patch_stands$node, vertex_attr(private$..net, 'name'))
       V(private$..net)$patch_id[m] = patch_id
       V(private$..net)$include[m] = patch_stands$include
       
@@ -384,8 +389,8 @@ patchmax_generator <- R6::R6Class(
         net <- private$..net
         s_txt = private$..param_threshold
         id = private$..param_id_field
-        all_ids = dplyr::pull(vertex_attr(net), id)   
-        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% pull(id)
+        all_ids = dplyr::pull(vertex_attr(net), 'name')   
+        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% pull(name)
         V(private$..net)$include = ifelse(all_ids %in% include_ids, 1, 0)
       } else
         V(private$..net)$include = 1
@@ -449,11 +454,11 @@ patchmax_generator <- R6::R6Class(
       private$..pending_patch_stats
     },
     #' @field stand_record Get list of recorded stands
-    patch_stands = function(){
+    recorded_patch_stands = function(){
       private$..record_patch_stands
     },
     #' @field patch_record Get list of recorded patches
-    patch_stats = function(){
+    recorded_patch_stats = function(){
       private$..record_patch_stats
     },
     #' @field id_field Get/set stand ID field
