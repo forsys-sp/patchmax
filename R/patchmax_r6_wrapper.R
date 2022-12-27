@@ -19,24 +19,24 @@
 #' @export
 
 simulate_projects <- function(
-    geom,                             # new
+    geom,                             # new param
     St_id,                            # add to geom / overwrite
-    St_adj,                           # deleted
+    St_adj,                           # delete
     St_area,                          # add to geom / overwrite
     St_objective,                     # add to geom / overwrite
-    St_seed = NULL,                   # deleted
-    P_size,                           # transfer
+    St_seed = NULL,                   # delete
+    P_size,                           # direct pass
     P_size_slack = 0.05,              # mutate to min project area
-    P_size_ceiling = Inf,             # not required: to delete
-    P_number = 1,                     # transfer
+    P_size_ceiling = Inf,             # delete
+    P_number = 1,                     # direct pass
     St_threshold = NULL,              # rework       
     St_threshold_value = NULL,        # rework
-    St_distances = NULL,              # deleted
-    SDW = NULL,                       # direct transfer
+    St_distances = NULL,              # delete
+    SDW = NULL,                       # direct pass
     P_constraint = NULL,              # add to geom / overwrite
-    P_constraint_max_value = Inf,     # 
-    P_constraint_min_value = -Inf,    # 
-    Candidate_min_size = NULL         # deleted
+    P_constraint_max_value = Inf,     # direct pass
+    P_constraint_min_value = -Inf,    # direct pass
+    Candidate_min_size = NULL         # delete
 ){
   
   geom_s <- geom
@@ -46,6 +46,7 @@ simulate_projects <- function(
   geom_s$P_constraint = P_constraint
   
   patchmax <- patchmax_generator$new(geom, 'St_id', 'St_objective', 'St_area', P_size)
+  
   patchmax$params <- list(
     area_min = P_size - (P_size * P_size_slack),
     sdw = SDW,

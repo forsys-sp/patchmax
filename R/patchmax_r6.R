@@ -370,12 +370,12 @@ patchmax <- R6::R6Class(
     ..param_threshold = NULL,
     ..param_threshold_area_adjust = 0,
     ..param_threshold_objective_adjust = 0,
-    ..param_exclusion_limit = 0,
+    ..param_exclusion_limit = 0.5,
     ..param_constraint_field = NULL,
     ..param_constraint_max = Inf,
     ..param_constraint_min = -Inf,
-    ..param_sdw = 0.3,
-    ..param_epw = 0.3,
+    ..param_sdw = 0.5,
+    ..param_epw = 0.5,
     ..pending_patch_stands = NULL,
     ..pending_patch_stats = NULL,
     ..pending_origin = NULL,
@@ -530,7 +530,8 @@ patchmax <- R6::R6Class(
         private$..set_threshold()
       }
     },
-    #' @field exclusion_limit Get/set threshold limit
+    #' @field exclusion_limit Get/set threshold limit 
+    #' @details Allowable percentage of stands within patch that are excluded because they do not meet the threshold). Large numbers result in larger patch coverage, even if total area treated remains limited by the max patch area.
     exclusion_limit = function(value){
       if(missing(value)){
         private$..param_exclusion_limit
@@ -597,6 +598,7 @@ patchmax <- R6::R6Class(
       }
     },
     #' @field area_max Get/set max value for area constraint
+    #' @details Patch coverage may be larger than the area_max if stand thresholds are used. Area max represents the max number of "treated" stands. 
     area_max = function(value){
       if(missing(value)){
         private$..param_area_max
@@ -642,7 +644,7 @@ patchmax <- R6::R6Class(
         private$..param_sdw <- value
       }
     },
-    #' @field params Get/set list of all patch parameters. Arguement is a named list if setting mutiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).
+    #' @field params Get/set list of all patch parameters. Argument is a named list if setting multiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).
     params = function(value){
       if(missing(value)){
         nm <- names(private)
