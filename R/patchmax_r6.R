@@ -169,7 +169,7 @@ patchmax <- R6::R6Class(
         a_min = private$..param_area_min,
         c_max = private$..param_constraint_max,
         c_min = private$..param_constraint_min,
-        t_limit = private$..param_threshold_limit,
+        t_limit = private$..param_exclusion_limit,
         return_all = return_all,
         show_progress = show_progress, 
         print_errors = print_errors)
@@ -370,7 +370,7 @@ patchmax <- R6::R6Class(
     ..param_threshold = NULL,
     ..param_threshold_area_adjust = 0,
     ..param_threshold_objective_adjust = 0,
-    ..param_threshold_limit = 0,
+    ..param_exclusion_limit = 0,
     ..param_constraint_field = NULL,
     ..param_constraint_max = Inf,
     ..param_constraint_min = -Inf,
@@ -530,12 +530,12 @@ patchmax <- R6::R6Class(
         private$..set_threshold()
       }
     },
-    #' @field threshold_limit Get/set threshold limit
-    threshold_limit = function(value){
+    #' @field exclusion_limit Get/set threshold limit
+    exclusion_limit = function(value){
       if(missing(value)){
-        private$..param_threshold_limit
+        private$..param_exclusion_limit
       } else {
-        private$..param_threshold_limit <- value
+        private$..param_exclusion_limit <- value
         private$..refresh_net_attr()
         private$..set_threshold()
       }

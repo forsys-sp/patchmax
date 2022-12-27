@@ -251,7 +251,7 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
         patch <- build_func(i, cpp_graph, net, a_max, a_min, c_max, c_min)
         if(!last(patch$area_met) | !last(patch$constraint_met))
           stop('Constains not met')
-        if(sum(patch$threshold_met)/nrow(patch) < t_limit)
+        if(sum(patch$threshold_met)/nrow(patch) <= (1 - t_limit))
           stop('Threshold limit exceeded')
         proj_obj = sum(patch$objective, na.rm=T)
         return(proj_obj)
