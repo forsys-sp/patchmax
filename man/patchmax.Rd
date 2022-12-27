@@ -15,15 +15,6 @@ pm$search(sample_frac = 1, plot_search = T)
 pm$build()$plot(show_seed = TRUE)$record()
 
 }
-\section{Public fields}{
-\if{html}{\out{<div class="r6-fields">}}
-\describe{
-\item{\code{stand_record}}{Get list of recorded stands}
-
-\item{\code{patch_record}}{Get list of recorded patches}
-}
-\if{html}{\out{</div>}}
-}
 \section{Active bindings}{
 \if{html}{\out{<div class="r6-active-bindings">}}
 \describe{
@@ -37,9 +28,9 @@ pm$build()$plot(show_seed = TRUE)$record()
 
 \item{\code{pending_patch}}{Get pending patch stats. Read only}
 
-\item{\code{stand_record}}{Get list of recorded stands}
+\item{\code{recorded_patch_stands}}{Get list of recorded stands}
 
-\item{\code{patch_record}}{Get list of recorded patches}
+\item{\code{recorded_patch_stats}}{Get list of recorded patches}
 
 \item{\code{id_field}}{Get/set stand ID field}
 
@@ -48,6 +39,8 @@ pm$build()$plot(show_seed = TRUE)$record()
 \item{\code{area_field}}{Get/set area field}
 
 \item{\code{threshold}}{Get/set threshold boolean statement}
+
+\item{\code{threshold_limit}}{Get/set threshold limit}
 
 \item{\code{threshold_area_adjust}}{Get/set fraction of area to count within excluded stands}
 
@@ -193,8 +186,8 @@ Plot patch and stand map
 \if{html}{\out{<div class="r">}}\preformatted{patchmax$plot(
   plot_field = NULL,
   return_plot = FALSE,
-  enforce_constraint = TRUE,
-  show_seed = FALSE
+  show_origin = FALSE,
+  apply_threshold = FALSE
 )}\if{html}{\out{</div>}}
 }
 
@@ -205,9 +198,9 @@ Plot patch and stand map
 
 \item{\code{return_plot}}{logical Return ggplot object}
 
-\item{\code{enforce_constraint}}{logical Apply secondary constraint}
+\item{\code{show_origin}}{logical}
 
-\item{\code{show_seed}}{logical Show origin used to build selected patch?}
+\item{\code{apply_threshold}}{logical}
 }
 \if{html}{\out{</div>}}
 }
