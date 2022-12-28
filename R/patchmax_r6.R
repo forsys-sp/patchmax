@@ -121,7 +121,7 @@ patchmax <- R6::R6Class(
       patch_dat <- vertex_attr(private$..net) %>% 
         dplyr::select(node = name, private$..param_objective_field, include, original_area = area)
       
-      patch <- dplyr::left_join(patch, patch_dat, by='node')
+      patch <- dplyr::left_join(patch, patch_dat, by='node', suffix = c('','.x'))
       
       private$..pending_patch_stands <- patch
       
@@ -265,8 +265,16 @@ patchmax <- R6::R6Class(
           st_buffer(-100)
       }
       
+      # base plot
+      geom <- private$..geom
+      net <- private$..net
+      
+      # add include field for plotting
+      geom$include = vertex_attr(net, 'include', match(geom$stand_id, V(net)$name))
+      
       plot = ggplot() + 
-        geom_sf(data=private$..geom, aes(fill=get(plot_field)), linewidth=0) + 
+        geom_sf(data=geom, aes(fill=get(plot_field), alpha=factor(include)), linewidth=0) + 
+        scale_alpha_manual(values=c(0.5, 1)) +
         guides(fill = guide_legend(plot_field)) +
         theme(legend.position = 'bottom') +
         theme_void() 
@@ -282,7 +290,7 @@ patchmax <- R6::R6Class(
         
         plot = plot +
           geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
-          geom_sf(data=suppressWarnings(st_centroid(excluded)), shape=4, size=1) +
+          geom_sf(data=suppressWarnings(st_centroid(excluded)), shape=4, size=1, alpha=0.5) +
           geom_sf_label(data=patches, aes(label=patch_id), label.r = unit(.5, "lines"))
       }
       
@@ -346,12 +354,26 @@ patchmax <- R6::R6Class(
     
     #' @description 
     #' Reset recorded patches
-    reset = function(){
-      message('Selected patches have been deleted')
-      private$..geom$patch_id = 0
-      V(private$..net)$patch_id = 0
-      private$..record_patch_stands = NULL
-      private$..record_patch_stats = NULL
+    reset = function(patch_id = NULL){
+      if(is.null(patch_id)){
+        private$..geom$patch_id = 0
+        V(private$..net)$patch_id = 0
+        private$..record_patch_stands = NULL
+        private$..record_patch_stats = NULL
+        message('All have been deleted')
+      } else {
+        if(patch_id < 0){
+          ids = sort(unique(private$..geom$patch_id), decreasing = T)
+          ids_s = ids[1:abs(patch_id)]
+          private$..geom$patch_id[private$..geom$patch_id %in% ids_s] = 0
+          V(private$..net)$patch_id[V(private$..net)$patch_id %in% ids_s] = 0
+          message(paste0('Patches ', ids_s, ' deleted'))
+        } else {
+          private$..geom$patch_id[private$..geom$patch_id %in% patch_id] = 0
+          V(private$..net)$patch_id[V(private$..net)$patch_id %in% patch_id] = 0
+        }
+      }
+
       private$..pending_patch_stands = NULL
       private$..pending_patch_stats = NULL
       private$..pending_origin = NULL

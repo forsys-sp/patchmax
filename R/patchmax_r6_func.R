@@ -146,7 +146,6 @@ build_func <- function(
     net, 
     a_max, 
     a_min=-Inf, 
-    a_slack = 0.1,
     c_max=Inf, 
     c_min=-Inf, 
     c_enforce=TRUE
@@ -177,9 +176,7 @@ build_func <- function(
     mutate(objective_cs = cumsum(objective))
 
   dist_df <- dist_df %>% 
-    relocate(node, dist, 
-             contains('objective'), contains('area'), 
-             contains('constraint'), contains('threshold'))
+    relocate(node, dist, contains('objective'), contains('area'), contains('constraint'), contains('threshold'))
   
   a_cs = dist_df$area_cs
   a_d <- ifelse(a_max - a_cs < 0, NA, a_max - a_cs)
@@ -187,9 +184,11 @@ build_func <- function(
   
   # evaluate secondary constraint if present
   if(!is.null(vertex_attr(net, 'constraint'))){
-    pnodes$constraint <- vertex_attr(net, 'constraint', match(pnodes$node, V(net)$name))
-    pnodes$constraint_cs <- cumsum(pnodes$constraint)
-    pnodes$constraint_met <- (pnodes$constraint_cs > c_min) & (pnodes$constraint_cs < c_max)
+    c_v <- vertex_attr(net, 'constraint', match(pnodes$node, V(net)$name))
+    c_cs <- cumsum(c_v)
+    pnodes$constraint <- c_v
+    pnodes$constraint_cs <- c_cs
+    pnodes$constraint_met <- (c_cs > c_min) & (c_cs < c_max)
     # remove stands that fail constraint 
     if(c_enforce){
       pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
@@ -276,7 +275,7 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
     }, .progress=show_progress, .options = furrr_options(seed = NULL))
 
     if(sum(!is.na(out)) == 0){
-      stop('No potential patches possible')
+      stop('No patches possible')
     }
     names(out) <- nodes
     
