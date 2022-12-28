@@ -3,33 +3,6 @@ library(dplyr)
 library(sf)
 library(future)
 
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-# Test with new data...  <<<<<<<<<<<<<<<<<<<<
-shp <- st_read('~/Downloads/Hexnet_Stanislaus/Hexnet_Stanislaus.shp')
-shp_s <- shp %>% filter(POINT_X > -2090000, POINT_X < -2060000) %>% filter(POINT_Y > 1930000, POINT_Y < 1960000)
-plot(shp[,'man_alldis'], border=F)
-
-pm <- patchmax$new(shp_s, 'CELL_ID', 'HUSUM_PCP', 'Acres', 10000)
-pm$params # view existing patchmax parameters
-pm$params <- list(threshold = 'OwnerCat == "USFS"')
-plan(multisession(workers=6)) # setup multiple sessions in parallel to increase search speed
-pm$search(.1, show_progress = T)$build()$record()$plot() # search, build, record, and plot single patch
-pm$simulate(20) # create 20 additional patches
-pm$plot() # plot 
-pm$recorded_patch_stats # patch stats
-
-# isolate and plot treated stands
-pdat <- shp_s %>% 
-  mutate(CELL_ID = as.character(CELL_ID)) %>% 
-  inner_join(pm$recorded_patch_stands %>% filter(include == 1), by=c('CELL_ID'='node'))
-plot(pdat[,'HUSUM_PCP.x'])
-plot(pdat[,'patch_id'])
-plot(pdat[,'OwnerCat'])
-  
-pm$reset()
-# End test with new data... <<<<<<<<<<<<<<<<<<<<
-# <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
 # load stand geometry
 shp <- patchmax::test_forest %>% 
   filter(row > 25, row <= 35, col > 25, col <= 35)
@@ -41,6 +14,7 @@ shp %>%
 
 # create new cost field by combining existing fields
 shp <- shp %>% mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
+plot(shp, border=NA, max.plot=19)
 plot(shp[,'cost'], border=NA)
 
 # create new patchmax object
@@ -51,9 +25,15 @@ pm <- patchmax$new(
   area_field = 'ha', 
   area_max = 1000)
 
+pm$params = list(
+  # threshold = 'm1 > 1',
+  constraint_field = 'p1',
+  constraint_max = 5)
+
+pm$reset()
 pm$simulate(12,1)
 pm$search(1, T)
- pm$plot()
+pm$plot()
 
 # search for best patch
 pm$search()$build()$plot()
