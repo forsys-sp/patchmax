@@ -9,12 +9,19 @@
 #' @return adjacency network saved as an igraph network object
 #' @export
 
-net_func <- function(geom, id_field, calc_dist = FALSE) {
+net_func <- function(geom, id_field, method = 'queen', calc_dist = FALSE) {
   
   id = pull(geom, id_field)
   
   # check overlap between buffered geometry to estimate adjacency
-  adj <- st_rook(geom) %>% data.frame()
+  adj <- switch(method, 
+         rook = st_buffer(geom, dist = 1) %>% 
+           st_overlaps(sparse = TRUE) %>% 
+           data.frame(),
+         queen = st_rook(geom) %>% 
+           data.frame(), 
+         buffer = st_queen(geom) %>% 
+           data.frame())
   net <- data.frame(A = id[adj$row.id], B = id[adj$col.id]) %>%
     graph_from_data_frame(directed = TRUE)
   
@@ -139,6 +146,7 @@ build_func <- function(
     net, 
     a_max, 
     a_min=-Inf, 
+    a_slack = 0.1,
     c_max=Inf, 
     c_min=-Inf, 
     c_enforce=TRUE
@@ -165,7 +173,7 @@ build_func <- function(
     arrange(dist) %>%
     filter(!is.na(dist)) %>%
     mutate(area_cs = cumsum(area)) %>%
-    mutate(area_met = (area_cs <= !!a_max) & (area_cs >= !!a_min)) %>%
+    mutate(area_met = (area_cs <= !!a_max ) & (area_cs >= !!a_min)) %>%
     mutate(objective_cs = cumsum(objective))
 
   dist_df <- dist_df %>% 
@@ -173,7 +181,9 @@ build_func <- function(
              contains('objective'), contains('area'), 
              contains('constraint'), contains('threshold'))
   
-  pnodes <- dist_df[1:which.min(abs(dist_df$area_cs - a_max)),]
+  a_cs = dist_df$area_cs
+  a_d <- ifelse(a_max - a_cs < 0, NA, a_max - a_cs)
+  pnodes <- dist_df[1:which.min(a_d),]
   
   # evaluate secondary constraint if present
   if(!is.null(vertex_attr(net, 'constraint'))){
@@ -200,7 +210,9 @@ build_func <- function(
 sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
   
   # sample fraction of total nodes
-  if(sample_frac > 0 & sample_frac <= 1){
+  if(sample_frac == 1){
+    nodes = geom$stand_id
+  } else if(sample_frac > 0 & sample_frac < 1){
     sample_n = round(nrow(geom) * sample_frac)
     # sample using regular spatial grid or as a simple random sample
     if(spatial_grid){
@@ -210,6 +222,7 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
       nodes = geom$stand_id[sort(sample(1:nrow(geom), sample_n))]
     }
   }
+  return(nodes)
 }
 
 #.....................................................................
@@ -250,9 +263,9 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
       tryCatch({
         patch <- build_func(i, cpp_graph, net, a_max, a_min, c_max, c_min)
         if(!last(patch$area_met) | !last(patch$constraint_met))
-          stop('Constains not met')
+          stop(paste0('Constaint(s) not met @', i))
         if(sum(patch$threshold_met)/nrow(patch) <= (1 - t_limit))
-          stop('Threshold limit exceeded')
+          stop(paste0('Threshold limit exceeded @', i))
         proj_obj = sum(patch$objective, na.rm=T)
         return(proj_obj)
       }, warning = function(w){}, 

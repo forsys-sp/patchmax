@@ -32,13 +32,14 @@ patchmax <- R6::R6Class(
   
   public = list(
     
+    # ..........................................................................
     #' @description Initialize new patchmax object for building patches
     #' @param geom sf Dataframe like sf object with geomerty
     #' @param id_field character Field name containing unique IDs
     #' @param objective_field character Field name containing objective values
     #' @param area_field character Field name containing area
     #' @param area_max numeric Size of patch
-    #' 
+    #'
     initialize = function(
       geom, 
       id_field=NULL, 
@@ -50,6 +51,10 @@ patchmax <- R6::R6Class(
         
         # force id name to character
         geom <- geom %>% mutate(!!id_field := as.character(get(id_field)))
+        
+        if(pull(geom, id_field) %>% n_distinct() < nrow(geom)){
+          stop('Stand IDs must be unique')
+        }
         
         # save geometry
         private$..geom <- geom
@@ -89,6 +94,7 @@ patchmax <- R6::R6Class(
       }
     },
     
+    # ..........................................................................
     #' @description Build patch at selected node
     #' @param node character. Stand ID used to build patch (optional)
     #' @details If node is NULL, use stand id found during search
@@ -137,12 +143,13 @@ patchmax <- R6::R6Class(
       return(invisible(self))
     },
     
+    # ..........................................................................
     #' @description Search patch origin with highest objective
     #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
     #' @param return_all logical Return search results
     #' @param show_progress logical Show search progress bar
     #' @param search_plot logical Map search results
-    #' 
+    #'
     search = function(
       sample_frac = 0.1, 
       search_plot = FALSE, 
@@ -178,7 +185,7 @@ patchmax <- R6::R6Class(
       message(glue::glue('\nBest start: {best_out} ({round(sample_frac*100)}% search)'))
       private$..pending_origin <- best_out
       
-      # plot search results (mainly for debugging)
+      # >>>>> Debugging: plot search results  <<<<<<<<
       if(search_plot){
         # make search plot
         search_dat <- data.frame(names(search_out), search_out = as.numeric(search_out)) %>%
@@ -194,7 +201,6 @@ patchmax <- R6::R6Class(
         patch_geom <- self$geom %>% 
           filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
           summarize()
-        # graph
         p1 <- ggplot() + 
           geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
           geom_sf(data=suppressWarnings(st_centroid(origin)), size=4, shape=5) +
@@ -203,14 +209,8 @@ patchmax <- R6::R6Class(
           theme_void() + 
           geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
         print(p1)
-        # p2 <- data.frame(score = sort(pdat$search_out, decreasing = T)) %>% 
-        #   dplyr::mutate(rank = 1:n()) %>%
-        #   ggplot(aes(x=rank, y=score, color=score)) + 
-        #   geom_point(size=2, shape=15) +
-        #   scale_color_gradientn(colors = sf.colors(10)) + 
-        #   theme_minimal()
-        # print(cowplot::plot_grid(p1, p2, ncol = 1))
       }
+      # >>>>> End plot search results <<<<<<<<
       
       if(return_all){
         x = private$..geom
@@ -222,10 +222,11 @@ patchmax <- R6::R6Class(
       return(invisible(self))
     },
     
+    # ..........................................................................
     #' @description Search, build, and record multiple patches in sequence
     #' @param n_projects integer. Number of patches to build
     #' @param sample_frac numeric. Fraction of stands to evaluate for patches
-    
+    #'
     simulate = function(n_projects = 1, sample_frac = 0.1){
       for(i in 1:n_projects){
         self$search(sample_frac = sample_frac)$build()$record() 
@@ -233,12 +234,13 @@ patchmax <- R6::R6Class(
       return(invisible(self))
     },
     
+    # ..........................................................................
     #' @description Plot patch and stand map
     #' @param plot_field character Field name to plot
     #' @param return_plot logical Return ggplot object
     #' @param show_origin logical 
     #' @param apply_threshold logical
-    
+    #'
     plot = function(plot_field = NULL, 
                     return_plot = FALSE, 
                     show_origin = FALSE,
@@ -265,10 +267,13 @@ patchmax <- R6::R6Class(
       
       plot = ggplot() + 
         geom_sf(data=private$..geom, aes(fill=get(plot_field)), linewidth=0) + 
-        scale_fill_gradientn(colors = sf.colors(10)) +
         guides(fill = guide_legend(plot_field)) +
         theme(legend.position = 'bottom') +
         theme_void() 
+      
+      if(!class(private$..geom %>% pull(get(plot_field))) %in% c('character','logical','factor')){
+        plot = plot + scale_fill_gradientn(colors = sf.colors(10))
+      }
       
       if(nrow(patches) > 0){
         
@@ -289,11 +294,12 @@ patchmax <- R6::R6Class(
       return(invisible(self))
     },
     
+    # ..........................................................................
     #' @description 
     #' Record selected patch
     #' @param patch_id integer/character Patch name. If null, add one to highest
     #' @param enforce_constraint logical Apply secondary constraint
-    #' 
+    
     record = function(patch_id = NULL, enforce_constraint = TRUE){
       if(is.null(private$..pending_patch_stands))
         stop('No patch. Run search or select first.')
@@ -384,6 +390,7 @@ patchmax <- R6::R6Class(
 
     #' @description private method. Update edgelist with distance
     # build cpp graph object     
+    
     ..update_adj = function(){
       cpp_graph <- graph_func(
         net = delete_vertices(private$..net, V(private$..net)$patch_id > 0),
@@ -395,6 +402,7 @@ patchmax <- R6::R6Class(
     
     #' @description private method. Update network adjacency object
     # update adjacency network
+    
     ..update_net = function(){
       
       # modify area and distance based on threshold 
@@ -409,7 +417,8 @@ patchmax <- R6::R6Class(
       return(net)
     },
     
-    # set threshold provided by the user
+    #' @description update network to identify which stands are included or excluded
+    
     ..set_threshold = function(){
       if(!is.null(private$..param_threshold)){
         net <- private$..net
@@ -478,13 +487,13 @@ patchmax <- R6::R6Class(
     pending_patch = function(){
       private$..pending_patch_stats
     },
-    #' @field recorded_patch_stands Get list of recorded stands
-    recorded_patch_stands = function(){
+    #' @field patch_stands Get list of recorded stands
+    patch_stands = function(){
       private$..record_patch_stands
     },
-    #' @field recorded_patch_stats
+    #' @field patch_stats
     #'  Get list of recorded patches
-    recorded_patch_stats = function(){
+    patch_stats = function(){
       private$..record_patch_stats
     },
     #' @field id_field Get/set stand ID field
@@ -649,7 +658,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         nm <- names(private)
         nm_p <- nm[grepl('..param', nm)]
-        params <- nm_p %>% map(function(x) get(x, envir = private))
+        params <- nm_p %>% lapply(function(x) get(x, envir = private))
         names(params) <- gsub('..param_','', nm_p)
         str(params)
       } else {
