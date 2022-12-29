@@ -93,7 +93,7 @@ threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
 #' @importFrom cppRouting makegraph
 #' @return cpp graph object
 
-graph_func <- function(net, objective_field, sdw=0, epw=0){
+dist_func <- function(net, objective_field, sdw=0, epw=0){
   
   # extract adjacency network edge list
   el <- igraph::as_edgelist(net, names=T) %>% 
@@ -104,7 +104,7 @@ graph_func <- function(net, objective_field, sdw=0, epw=0){
   # calculate average objective score for each dyad
   a <- vertex_attr(net, objective_field, match(el$from, V(net)$name)) 
   b <- vertex_attr(net, objective_field, match(el$to, V(net)$name)) 
-  el$objective = (a + b)/2
+  el$objective = range01((a + b)/2)
   
   # calculate exclude penalty score for each dyad
   a <- vertex_attr(net, 'include', match(el$from, V(net)$name)) 
@@ -114,13 +114,11 @@ graph_func <- function(net, objective_field, sdw=0, epw=0){
   # modify distance based on objective 
   # (increase distance to lower objectives by factor of X)
   el$dist_adj <- el$dist * (2 - el$objective)^(10^sdw)
-  # el$dist_adj <- el$dist * (1 - el$objective) * (sdw - 1)
-  
+
   # modify distance based on exclusion status
   # (increase distance to excluded areas by factor of X)
   el$dist_adj <- el$dist_adj * ifelse(el$exclude, 10^epw, 1)
-  # el$dist_adj <- el$dist_adj * ifelse(el$exclude, epw, 1)
-  
+
   cpp_graph <- makegraph(el[,c('from','to','dist_adj')])
   return(cpp_graph)
 }
@@ -132,10 +130,10 @@ graph_func <- function(net, objective_field, sdw=0, epw=0){
 #' @param start_node character. Node id to start building patch
 #' @param cpp_graph graph object built with cppRouting
 #' @param net igraph Adjacency network with stand attributes
-#' @param a_max numeric. Target (i.e., maximum) size of patch
-#' @param a_min numeric. Mininmum size of patch
-#' @param c_max numeric. Maximum secondary constraint total for patch
-#' @param c_min numeric. Minimum secondary constraint total for patch
+#' @param a_max numeric. Maximum size of patch
+#' @param a_min numeric. Minimum size of patch
+#' @param c_max numeric. Maximum secondary constraint of patch
+#' @param c_min numeric. Minimum secondary constraint of patch
 #' @param c_enforce logical. Should patches outside of constraint be excluded?
 #' @importFrom cppRouting get_distance_matrix
 #' @return data frame of nearest nodes arranged by distance
@@ -162,22 +160,25 @@ build_func <- function(
     node = names(dmat), 
     dist = dmat, 
     area = vertex_attr(net, 'area', match(cpp_graph$dict$ref, V(net)$name)), 
-    objective = vertex_attr(net, 'objective', match(cpp_graph$dict$ref,V(net)$name)), 
-    threshold_met = vertex_attr(net, 'exclude', match(cpp_graph$dict$ref,V(net)$name)) != 1,
+    include = vertex_attr(net, 'include', match(cpp_graph$dict$ref, V(net)$name)),
+    objective = vertex_attr(net, 'objective', match(cpp_graph$dict$ref, V(net)$name)), 
     constraint_met = TRUE,
-    row.names = NULL)
+    row.names = NULL) 
   
-  # identify nearest nodes up to area limit
+  # accumulate constraints
   dist_df <- dist_df %>% 
     arrange(dist) %>%
     filter(!is.na(dist)) %>%
-    mutate(area_cs = cumsum(area)) %>%
+    mutate(threshold_met = include == 1) %>%
+    mutate(area_cs = cumsum(area * threshold_met)) %>%
     mutate(area_met = (area_cs <= !!a_max ) & (area_cs >= !!a_min)) %>%
-    mutate(objective_cs = cumsum(objective))
+    mutate(objective_cs = cumsum(objective * threshold_met))
 
   dist_df <- dist_df %>% 
-    relocate(node, dist, contains('objective'), contains('area'), contains('constraint'), contains('threshold'))
+    relocate(node, dist, include, contains('objective'), contains('area'), 
+             contains('constraint'), contains('threshold'))
   
+  # select stands up to max patch size
   a_cs = dist_df$area_cs
   a_d <- ifelse(a_max - a_cs < 0, NA, a_max - a_cs)
   pnodes <- dist_df[1:which.min(a_d),]
@@ -185,7 +186,7 @@ build_func <- function(
   # evaluate secondary constraint if present
   if(!is.null(vertex_attr(net, 'constraint'))){
     c_v <- vertex_attr(net, 'constraint', match(pnodes$node, V(net)$name))
-    c_cs <- cumsum(c_v)
+    c_cs <- cumsum(c_v * pnodes$include)
     pnodes$constraint <- c_v
     pnodes$constraint_cs <- c_cs
     pnodes$constraint_met <- (c_cs > c_min) & (c_cs < c_max)
@@ -261,9 +262,11 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
       proj_obj <- NA
       tryCatch({
         patch <- build_func(i, cpp_graph, net, a_max, a_min, c_max, c_min)
+        t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
+        # t_sum <- sum(patch$threshold_met)/nrow(patch)
         if(!last(patch$area_met) | !last(patch$constraint_met))
           stop(paste0('Constaint(s) not met @', i))
-        if(sum(patch$threshold_met)/nrow(patch) <= (1 - t_limit))
+        if(t_sum <= (1 - t_limit))
           stop(paste0('Threshold limit exceeded @', i))
         proj_obj = sum(patch$objective, na.rm=T)
         return(proj_obj)
@@ -277,8 +280,8 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
     if(sum(!is.na(out)) == 0){
       stop('No patches possible')
     }
-    names(out) <- nodes
     
+    names(out) <- nodes
     if(return_all){
       return(out)
     } else {

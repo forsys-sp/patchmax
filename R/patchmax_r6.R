@@ -59,9 +59,6 @@ patchmax <- R6::R6Class(
         # save geometry
         private$..geom <- geom
         
-        # normalize objective 
-        private$..geom <- geom %>% mutate(!!objective_field := range01(get(objective_field)))
-        
         # parameters
         private$..param_id_field = id_field
         private$..param_objective_field = objective_field
@@ -119,26 +116,23 @@ patchmax <- R6::R6Class(
       
       # append auxiliary stand data
       patch_dat <- vertex_attr(private$..net) %>% 
-        dplyr::select(node = name, private$..param_objective_field, include, original_area = area)
+        select(node = name, private$..param_objective_field, original_area = area)
       
-      patch <- dplyr::left_join(patch, patch_dat, by='node', suffix = c('','.x'))
+      patch <- left_join(patch, patch_dat, by='node', suffix = c('','.x'))
       
       private$..pending_patch_stands <- patch
       
       stats = data.frame(
         start = patch$node[1], 
-        area = round(sum(patch$area),3),
-        coverage = round(sum(patch$original_area),3),
-        objective = round(sum(patch$objective),3),
-        constraint = round(sum(patch$constraint),3),
-        excluded = 100-round(sum(patch$include)/nrow(patch)*100),
-        area_met = patch$area_met[nrow(patch)],
-        constraint_met = patch$area_met[nrow(patch)])
+        area = round(max(patch$area_cs),3),
+        coverage = round(sum(patch$area),3),
+        objective = round(max(patch$objective_cs),3),
+        constraint = round(max(patch$constraint_cs),3),
+        excluded = 100-round(max(patch$area_cs)/sum(patch$area)*100))
       
       private$..pending_patch_stats = stats
       
-      message(glue::glue('Patch stats: start {stats$start}, area {stats$area}, score {stats$objective}, constraint {stats$constraint}, excluded {stats$excluded}%'))
-      message(glue::glue('Constraints met: area {stats$area_met}, secondary: {stats$constraint_met}'))
+      message(glue::glue('Patch stats: start {stats$start}, area {stats$area}, coverage {stats$coverage}, score {stats$objective}, constraint {stats$constraint}, excluded {stats$excluded}%'))
       
       return(invisible(self))
     },
@@ -166,6 +160,8 @@ patchmax <- R6::R6Class(
       }
       
       nodes <- sample_frac(private$..geom, sample_frac, TRUE)
+      
+      message('Searching...')
       
       search_out <- search_func(
         cpp_graph = private$..update_adj(), 
@@ -249,49 +245,49 @@ patchmax <- R6::R6Class(
       
       plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
       
-      if(apply_threshold){
-        patches = private$..geom %>% 
-          filter(include == 1, patch_id != 0) %>% 
-          group_by(patch_id) %>% 
-          summarize() %>%
-          st_buffer(100) %>%
-          st_buffer(-100)
-      } else {
-        patches = private$..geom %>% 
-          filter(patch_id != 0) %>% 
-          group_by(patch_id) %>% 
-          summarize() %>%
-          st_buffer(100) %>%
-          st_buffer(-100)
-      }
-      
-      # base plot
+      # base data
       geom <- private$..geom
       net <- private$..net
       
+      if(apply_threshold){
+        patches = geom %>% 
+          filter(include == 1, patch_id != 0) 
+      } else {
+        patches = geom %>% 
+          filter(patch_id != 0)
+      }
+      
+      patches <- patches %>% 
+        group_by(patch_id) %>% 
+        summarize()
+      
       # add include field for plotting
       geom$include = vertex_attr(net, 'include', match(geom$stand_id, V(net)$name))
+      geom$include = factor(geom$include, c(0,1))
       
       plot = ggplot() + 
-        geom_sf(data=geom, aes(fill=get(plot_field), alpha=factor(include)), linewidth=0) + 
-        scale_alpha_manual(values=c(0.5, 1)) +
+        geom_sf(data=geom, 
+                aes(fill=get(plot_field), alpha=include), 
+                linewidth=0) + 
+        scale_alpha_manual(values=c(0.5, 1), breaks=c(0,1)) +
         guides(fill = guide_legend(plot_field)) +
         theme(legend.position = 'bottom') +
         theme_void() 
       
-      if(!class(private$..geom %>% pull(get(plot_field))) %in% c('character','logical','factor')){
+      if(!class(geom %>% pull(get(plot_field))) %in% c('character','logical','factor')){
         plot = plot + scale_fill_gradientn(colors = sf.colors(10))
       }
       
       if(nrow(patches) > 0){
         
-        excluded = private$..geom %>% 
-          filter(patch_id != 0, include == 0)
+        x <- private$..record_patch_stands %>% filter(dist == 0) %>% pull(node)
+        origins = geom %>% filter(geom$stand_id %in% x) %>% select(patch_id)
+        excluded <- geom %>% filter(patch_id != 0, include == 0)
         
-        plot = plot +
+        plot <- plot +
           geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
           geom_sf(data=suppressWarnings(st_centroid(excluded)), shape=4, size=1, alpha=0.5) +
-          geom_sf_label(data=patches, aes(label=patch_id), label.r = unit(.5, "lines"))
+          geom_sf_label(data=origins, aes(label=patch_id), label.r = unit(.5, "lines"))
       }
       
       if(return_plot){
@@ -414,12 +410,12 @@ patchmax <- R6::R6Class(
     # build cpp graph object     
     
     ..update_adj = function(){
-      cpp_graph <- graph_func(
+      dst <- dist_func(
         net = delete_vertices(private$..net, V(private$..net)$patch_id > 0),
         objective_field = private$..param_objective_field, 
         sdw = private$..param_sdw, 
         epw = private$..param_epw)
-      return(cpp_graph)
+      return(dst)
     },
     
     #' @description private method. Update network adjacency object
@@ -427,15 +423,17 @@ patchmax <- R6::R6Class(
     
     ..update_net = function(){
       
+      net <- private$..net
+      
       # modify area and distance based on threshold 
-      net <- threshold_func(
-        net = private$..net, 
-        include = V(private$..net)$include, 
-        area_adjust = private$..param_threshold_area_adjust, 
-        objective_adjust = private$..param_threshold_objective_adjust)
+      # net <- threshold_func(
+      #   net = net, 
+      #   include = V(net)$include, 
+      #   area_adjust = private$..param_threshold_area_adjust, 
+      #   objective_adjust = private$..param_threshold_objective_adjust)
       
       # remove stands assigned a patch id
-      net <- delete_vertices(net, V(private$..net)$patch_id > 0)
+      net <- delete_vertices(net, V(net)$patch_id > 0)
       return(net)
     },
     

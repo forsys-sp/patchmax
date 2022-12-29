@@ -1,29 +1,39 @@
-#' Simulate landscape projects
-#' @param geom sf geometry representing stands
-#' @param St_id Numeric vector of integer stands IDs
-#' @param St_area Numeric vector of stands area
-#' @param St_objective Numeric vector of stands objective
-#' @param St_seed Numeric vector of stands IDs seeds. If NULL, then stand seed is not applied.
-#' @param P_size Project size
-#' @param P_
-#' @param P_number Number of projects to simulate
-#' @param St_threshold Threshold statement
-#' @param SDW Stand distance weight parameter. If NULL, then the value = 1 is used by default.
-#' @param P_constraint Numeric vector of stands value for the project constraint.Coupled with P_constraint_max_value and P_constraint_min_value. If NULL, then project constraint is not applied.
-#' @param P_constraint_max_value Project constraint upper value.
-#' @param P_constraint_min_value Project constraint lower value.
-#' @return matrix containing stand id, stand count, objective score, and type where type = 0 are valid non-contained projects, type = 1 are valid constrained projects, type = 2 are invalid constrained projects, and type == 3 are invalid and non-constrained
+#' Simulate landscape projects (wrapper)
+#'
+#' @param geom sf. Geometry representing stands
+#' @param St_id vector. stands IDs. Converted to character
+#' @param St_area numeric vector. Stands area
+#' @param St_objective numeric vector. Stands objective values
+#' @param St_seed numeric vector of stands IDs seeds. 
+#' @param P_size numeric. Project size
+#' @param P_size_slack numeric fraction [0-1]. Minimum size defined as percent
+#'   less than project size (only used when constraint is provided)
+#' @param P_number number integer. Number of patches to simulate
+#' @param St_threshold character threshold statement (e.g., 'field > 0.5' or 'variable == 1')
+#' @param SDW numeric fraction [0-1]. Stand distance weight parameter. Default is 0.5
+#' @param P_constraint numeric vector. Stands values for the project
+#'   constraint.Coupled with P_constraint_max_value and P_constraint_min_value.
+#'   If NULL, then project constraint is not applied.
+#' @param P_constraint_max_value numeric. Project constraint upper value. Default is -Inf
+#' @param P_constraint_min_value numeric. Project constraint lower value. Default is Inf
+#'
+#' @return list with first element describing patch-level stats and the second
+#'   element secribing stand-level stats.
+#'
+#' @details This function is meant as a API for calling patchmax within ForSys
+#'   (or another environment) using a minimal set of parameters.
+#'   
 #' @export
 
 simulate_projects <- function(
-    geom,                             # new param
-    St_id,                            # add to geom
-    St_area,                          # add to geom 
-    St_objective,                     # add to geom 
+    geom,                             # REQ
+    St_id,                            # REQ
+    St_area,                          # REQ
+    St_objective,                     # REQ
     St_seed = NULL,                   # TODO
-    P_size,                           # pass
+    P_size,                           # REQ
     P_size_slack = 0.05,              # mutate to min project area
-    P_number = 1,                     # pass
+    P_number = 1,                     # REQ
     St_threshold = NULL,              # takes threshold statement as input    
     SDW = NULL,                       # pass
     P_constraint = NULL,              # add to geom 
@@ -46,7 +56,10 @@ simulate_projects <- function(
     constraint_max = P_constraint_max_value,
     constraint_min = P_constraint_min_value)
   
-  pm$simulate(P_number)
+  
+  for(i in 1:P_number){
+    self$search(sample_frac = 1, show_progress = T)$build()$record() 
+  }
   
   out_a <- pm$patch_stats %>% select(
     Project = patch_id,
@@ -67,20 +80,4 @@ simulate_projects <- function(
   
   out <- list(out_a, out_b)
   return(out)
-  
-  #' patchmax outputs: list
-  #' [[1]]
-  #'    Project = patch_id, 
-  #'    Area = area, 
-  #'    TotalArea = coverage, 
-  #'    Objective = objective, 
-  #'    Constraint = constraint
-  #'    Type = 0
-  #' [[2]] 
-  #'     Project = patch_id, 
-  #'     Stands = node, 
-  #'     DoTreat = include 
-  #'     Area = area, 
-  #'     Objective = objective, 
-  #'     Constraint = constraint
 }
