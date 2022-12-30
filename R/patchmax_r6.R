@@ -64,6 +64,7 @@ patchmax <- R6::R6Class(
         private$..param_objective_field = objective_field
         private$..param_area_field = area_field
         private$..param_area_max = area_max 
+        private$..param_constraint_field = area_field
         
         # setup key fields in geometry object
         private$..geom$stand_id = as.character(dplyr::pull(private$..geom, id_field))
@@ -280,7 +281,7 @@ patchmax <- R6::R6Class(
       
       if(nrow(patches) > 0){
         
-        x <- private$..record_patch_stands %>% filter(dist == 0) %>% pull(node)
+        x <- private$..record_patch_stats$start
         origins = geom %>% filter(geom$stand_id %in% x) %>% select(patch_id)
         excluded <- geom %>% filter(patch_id != 0, include == 0)
         
@@ -313,9 +314,17 @@ patchmax <- R6::R6Class(
         patch_id = max(V(private$..net)$patch_id) + 1
       }
       
+      # pull pending patch and stand data
+      patches <- private$..pending_patch_stats
+      stands <- private$..pending_patch_stands %>%
+        select(!!private$..param_id_field := node, include, objective, area, constraint) %>%
+        mutate(objective = objective * include) %>%
+        mutate(area = area * include) %>%
+        mutate(constraint = constraint * include)
+      
       # record data
-      patch_stats <- data.frame(patch_id = patch_id, private$..pending_patch_stats)
-      patch_stands <- data.frame(patch_id = patch_id, private$..pending_patch_stands)
+      patch_stats <- data.frame(patch_id = patch_id, patches)
+      patch_stands <- data.frame(patch_id = patch_id, stands)
 
       private$..record_patch_stats <- bind_rows(private$..record_patch_stats, patch_stats)
       private$..record_patch_stands <- bind_rows(private$..record_patch_stands, patch_stands)
@@ -341,11 +350,30 @@ patchmax <- R6::R6Class(
     
     #' @description 
     #' Summarize recorded patches
-    describe = function(){
-      private$..geom %>% 
+    summarize = function(group_vars = NULL, sum_vars = NULL){
+      
+      stands <- private$..geom %>% 
         st_drop_geometry() %>% 
-        group_by(patch_id) %>% 
-        summarize_if(is.numeric, sum)
+        select(-include) %>%
+        inner_join(self$patch_stands) %>%
+        rename(DoTreat = include)
+      
+      sum_vars <- c(private$..param_objective_field,
+                private$..param_area_field,
+                private$..param_constraint_field,
+                sum_vars)
+      
+      if(!is.null(private$..param_threshold)){
+        group_vars <- c('patch_id','DoTreat', group_vars)
+      } else {
+        group_vars <- c('patch_id', group_vars)
+      }
+      
+      sum_out <- stands %>% 
+        group_by_at(vars(group_vars)) %>%
+        summarize_at(vars(sum_vars), sum)
+      
+      return(sum_out)
     },
     
     #' @description 
@@ -356,7 +384,7 @@ patchmax <- R6::R6Class(
         V(private$..net)$patch_id = 0
         private$..record_patch_stands = NULL
         private$..record_patch_stats = NULL
-        message('All have been deleted')
+        message('All patches reset')
       } else {
         if(patch_id < 0){
           ids = sort(unique(private$..geom$patch_id), decreasing = T)
