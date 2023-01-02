@@ -58,7 +58,7 @@ simulate_projects <- function(
   
   
   for(i in 1:P_number){
-    self$search(sample_frac = 1, show_progress = T)$build()$record() 
+    pm$search(sample_frac = 1, show_progress = T)$build()$record() 
   }
   
   out_a <- pm$patch_stats %>% select(

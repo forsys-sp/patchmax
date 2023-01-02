@@ -9,11 +9,11 @@
 #' @return adjacency network saved as an igraph network object
 #' @export
 
-net_func <- function(geom, id_field, method = 'queen', calc_dist = FALSE) {
+net_func <- function(geom, id_field, method = 'queen') {
   
   id = pull(geom, id_field)
   
-  # check overlap between buffered geometry to estimate adjacency
+  # identify adjacency
   adj <- switch(method, 
          rook = st_buffer(geom, dist = 1) %>% 
            st_overlaps(sparse = TRUE) %>% 
@@ -22,34 +22,33 @@ net_func <- function(geom, id_field, method = 'queen', calc_dist = FALSE) {
            data.frame(), 
          buffer = st_queen(geom) %>% 
            data.frame())
+  
+  # build adjacency network
   net <- data.frame(A = id[adj$row.id], B = id[adj$col.id]) %>%
     graph_from_data_frame(directed = TRUE)
+
+  # calculate centroid coordinates
+  suppressWarnings({
+    xy <- geom %>% 
+      st_centroid() %>% 
+      st_coordinates() %>% 
+      as.data.frame()
+    xy$name <- id
+  })
   
-  if(calc_dist){
-    
-    # calculate centroid coordinates
-    suppressWarnings({
-      xy <- geom %>% 
-        st_centroid() %>% 
-        st_coordinates() %>% 
-        as.data.frame()
-      xy$name <- id
-    })
-    
-    V(net)$X <- xy$X[match(V(net)$name, xy$name)]
-    V(net)$Y <- xy$Y[match(V(net)$name, xy$name)]
-    
-    # extract edge list 
-    el <- igraph::as_edgelist(net, names=T) %>% 
-      as.data.frame() %>% 
-      setNames(c('from','to'))
-    
-    # calculate pairwise distances among dyads
-    edge_attr(net) <- list(dist = proxy::dist(
-      x = xy[match(el$from, xy$name),c('X','Y')], 
-      y = xy[match(el$to, xy$name),c('X','Y')], 
-      pairwise = T))
-  }
+  V(net)$X <- xy$X[match(V(net)$name, xy$name)]
+  V(net)$Y <- xy$Y[match(V(net)$name, xy$name)]
+  
+  # extract edge list 
+  el <- igraph::as_edgelist(net, names=T) %>% 
+    as.data.frame() %>% 
+    setNames(c('from','to'))
+  
+  # calculate pairwise distances among dyads
+  edge_attr(net) <- list(dist = proxy::dist(
+    x = xy[match(el$from, xy$name),c('X','Y')], 
+    y = xy[match(el$to, xy$name),c('X','Y')], 
+    pairwise = T))
   
   return(net)
 }
@@ -72,11 +71,10 @@ net_func <- function(geom, id_field, method = 'queen', calc_dist = FALSE) {
 #' @return igraph adjacency network
 
 threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
-  V(net)$exclude <- !include
-  V(net)$objective[!include] <- V(net)$objective[!include] * objective_adjust
+  V(net)$..objective[!include] <- V(net)$..objective[!include] * objective_adjust
   V(net)$area[!include] <- V(net)$area[!include] * area_adjust
-  if(!is.null(V(net)$constraint))
-    V(net)$constraint[!include] <- V(net)$constraint[!include] * 0
+  if(!is.null(V(net)$..constraint))
+    V(net)$..constraint[!include] <- V(net)$..constraint[!include] * 0
   return(net)
 }
 
@@ -86,10 +84,9 @@ threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
 #'
 #' @param net igraph object
 #' @param objective_field name of variable containing objective
-#' @param sdw numeric between -1 and 1 controlling flexibility
-#' @param epw numeric between -1 and 1 distance multiplier for traversing excluded stands
-#' @details `epw` values less than 1 will preferentially select excluded stands
-#'   while values greater than 1 avoids excluded stands.
+#' @param sdw numeric between 0 and 1 distance multiplier for traversing low objective stands
+#' @param epw numeric between 0 and 1 distance multiplier for traversing excluded stands
+#' @details `epw` and `sdw` have exponential effects. At 1, distance values are 10x greater than at 0. Setting either value to 0 leaves distances unmodified.
 #' @importFrom cppRouting makegraph
 #' @return cpp graph object
 
@@ -102,13 +99,13 @@ dist_func <- function(net, objective_field, sdw=0, epw=0){
   el$dist <- E(net)$dist
   
   # calculate average objective score for each dyad
-  a <- vertex_attr(net, objective_field, match(el$from, V(net)$name)) 
-  b <- vertex_attr(net, objective_field, match(el$to, V(net)$name)) 
+  a <- vertex_attr(net, '..objective', match(el$from, V(net)$name)) 
+  b <- vertex_attr(net, '..objective', match(el$to, V(net)$name)) 
   el$objective = range01((a + b)/2)
   
   # calculate exclude penalty score for each dyad
-  a <- vertex_attr(net, 'include', match(el$from, V(net)$name)) 
-  b <- vertex_attr(net, 'include', match(el$to, V(net)$name)) 
+  a <- vertex_attr(net, '..include', match(el$from, V(net)$name)) 
+  b <- vertex_attr(net, '..include', match(el$to, V(net)$name)) 
   el$exclude = ifelse(a | b, 0, 1)
   
   # modify distance based on objective 
@@ -159,9 +156,9 @@ build_func <- function(
   dist_df <- data.frame(
     node = names(dmat), 
     dist = dmat, 
-    area = vertex_attr(net, 'area', match(cpp_graph$dict$ref, V(net)$name)), 
-    include = vertex_attr(net, 'include', match(cpp_graph$dict$ref, V(net)$name)),
-    objective = vertex_attr(net, 'objective', match(cpp_graph$dict$ref, V(net)$name)), 
+    area = vertex_attr(net, '..area', match(cpp_graph$dict$ref, V(net)$name)), 
+    include = vertex_attr(net, '..include', match(cpp_graph$dict$ref, V(net)$name)),
+    objective = vertex_attr(net, '..objective', match(cpp_graph$dict$ref, V(net)$name)), 
     constraint_met = TRUE,
     row.names = NULL) 
   
@@ -184,8 +181,8 @@ build_func <- function(
   pnodes <- dist_df[1:which.min(a_d),]
   
   # evaluate secondary constraint if present
-  if(!is.null(vertex_attr(net, 'constraint'))){
-    c_v <- vertex_attr(net, 'constraint', match(pnodes$node, V(net)$name))
+  if(!is.null(vertex_attr(net, '..constraint'))){
+    c_v <- vertex_attr(net, '..constraint', match(pnodes$node, V(net)$name))
     c_cs <- cumsum(c_v * pnodes$include)
     pnodes$constraint <- c_v
     pnodes$constraint_cs <- c_cs
@@ -258,12 +255,11 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
     }
     
     # calculate objective score for all potential patches
-    out <- nodes %>% furrr::future_map_dbl(function(i){
+    search_out <- nodes %>% furrr::future_map_dbl(function(i){
       proj_obj <- NA
       tryCatch({
         patch <- build_func(i, cpp_graph, net, a_max, a_min, c_max, c_min)
         t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
-        # t_sum <- sum(patch$threshold_met)/nrow(patch)
         if(!last(patch$area_met) | !last(patch$constraint_met))
           stop(paste0('Constaint(s) not met @', i))
         if(t_sum <= (1 - t_limit))
@@ -277,15 +273,15 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
         })
     }, .progress=show_progress, .options = furrr_options(seed = NULL))
 
-    if(sum(!is.na(out)) == 0){
+    if(sum(!is.na(search_out)) == 0){
       stop('No patches possible')
     }
     
-    names(out) <- nodes
+    names(search_out) <- nodes
     if(return_all){
-      return(out)
+      return(search_out)
     } else {
-      return(out[which.max(out)])
+      return(search_out[which.max(search_out)])
     }
 }
 

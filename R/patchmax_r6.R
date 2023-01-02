@@ -45,51 +45,50 @@ patchmax <- R6::R6Class(
       id_field=NULL, 
       objective_field=NULL, 
       area_field=NULL, 
-      area_max=NULL
+      area_max=NULL,
+      ...
     ){
-      if(!missing(geom)){
-        
-        # force id name to character
-        geom <- geom %>% mutate(!!id_field := as.character(get(id_field)))
-        
-        if(pull(geom, id_field) %>% n_distinct() < nrow(geom)){
-          stop('Stand IDs must be unique')
-        }
-        
-        # save geometry
-        private$..geom <- geom
-        
-        # parameters
-        private$..param_id_field = id_field
-        private$..param_objective_field = objective_field
-        private$..param_area_field = area_field
-        private$..param_area_max = area_max 
-        private$..param_constraint_field = area_field
-        
-        # setup key fields in geometry object
-        private$..geom$stand_id = as.character(dplyr::pull(private$..geom, id_field))
-        private$..geom$patch_id = 0
-        private$..geom$include = 1
-        
-        # build adjacency network
-        private$..net <- net_func(
-          geom = private$..geom, 
-          id_field = id_field, 
-          calc_dist = TRUE)
-        
-        # add addition fields to adjacency network
-        a <- vertex_attr(private$..net) %>% data.frame()
-        b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
-        vertex_attr(private$..net) <- left_join(a, b, by='name')
-        vertex_attr(private$..net, name = 'exclude') = 0
-        vertex_attr(private$..net, name = 'patch_id') = 0
-        vertex_attr(private$..net, name = 'include') = 1
-        
-        private$..refresh_net_attr()
-        
-      } else {
+      if(missing(geom)){
         stop('Geometry required')
       }
+        
+      # force id name to character
+      geom <- geom %>% mutate(!!id_field := as.character(get(id_field)))
+      
+      if(pull(geom, id_field) %>% n_distinct() < nrow(geom)){
+        stop('Stand IDs must be unique')
+      }
+      
+      # save geometry
+      private$..geom <- geom
+      
+      # save parameters
+      private$..param_id_field = id_field
+      private$..param_objective_field = objective_field
+      private$..param_area_field = area_field
+      private$..param_area_max = area_max 
+      private$..param_constraint_field = area_field
+      self$params <- list(...)
+
+      # setup key fields in geometry object
+      # private$..geom$stand_id = as.character(dplyr::pull(private$..geom, id_field))
+      private$..geom$..patch_id = 0
+      private$..geom$..include = 1
+      
+      # build adjacency network
+      private$..net <- net_func(
+        geom = private$..geom, 
+        id_field = id_field)
+      
+      # add addition fields to adjacency network
+      # NOTE reserved fields: ..objective, ..area, ..constraint, ..exclude, ..include, ..patch_id,
+      a <- vertex_attr(private$..net) %>% data.frame()
+      b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
+      vertex_attr(private$..net) <- left_join(a, b, by='name')
+      vertex_attr(private$..net, name = '..patch_id') = 0
+      vertex_attr(private$..net, name = '..include') = 1
+      
+      private$..refresh_net_attr()
     },
     
     # ..........................................................................
@@ -114,13 +113,16 @@ patchmax <- R6::R6Class(
         c_max = private$..param_constraint_max,
         c_min = private$..param_constraint_min)
       
-      
       # append auxiliary stand data
-      patch_dat <- vertex_attr(private$..net) %>% 
-        select(node = name, private$..param_objective_field, original_area = area)
+      aux_data <- vertex_attr(private$..net) %>% 
+        select(
+          node = name, 
+          private$..param_objective_field, 
+          original_area = ..area)
       
-      patch <- left_join(patch, patch_dat, by='node', suffix = c('','.x'))
+      patch <- left_join(patch, aux_data, by='node', suffix = c('','.x'))
       
+      # save patch stat and stand data
       private$..pending_patch_stands <- patch
       
       stats = data.frame(
@@ -128,12 +130,13 @@ patchmax <- R6::R6Class(
         area = round(max(patch$area_cs),3),
         coverage = round(sum(patch$area),3),
         objective = round(max(patch$objective_cs),3),
+        # objective = round(sum(patch$objective * patch$area * patch$threshold_met),3),
         constraint = round(max(patch$constraint_cs),3),
         excluded = 100-round(max(patch$area_cs)/sum(patch$area)*100))
       
       private$..pending_patch_stats = stats
       
-      message(glue::glue('Patch stats: start {stats$start}, area {stats$area}, coverage {stats$coverage}, score {stats$objective}, constraint {stats$constraint}, excluded {stats$excluded}%'))
+      message(glue::glue('Patch stats: start {stats$start}, area {stats$area}, coverage {stats$coverage}, objective {stats$objective}, constraint {stats$constraint}, excluded {stats$excluded}%'))
       
       return(invisible(self))
     },
@@ -251,24 +254,20 @@ patchmax <- R6::R6Class(
       net <- private$..net
       
       if(apply_threshold){
-        patches = geom %>% 
-          filter(include == 1, patch_id != 0) 
+        patches = geom %>% filter(..include == 1, ..patch_id != 0) 
       } else {
-        patches = geom %>% 
-          filter(patch_id != 0)
+        patches = geom %>% filter(..patch_id != 0)
       }
       
-      patches <- patches %>% 
-        group_by(patch_id) %>% 
-        summarize()
+      patches <- patches %>% group_by(..patch_id) %>% summarize()
       
       # add include field for plotting
-      geom$include = vertex_attr(net, 'include', match(geom$stand_id, V(net)$name))
-      geom$include = factor(geom$include, c(0,1))
+      geom$..include = vertex_attr(net, '..include', match(pull(geom, private$..param_id_field), V(net)$name))
+      geom$..include = factor(geom$..include, c(0,1))
       
       plot = ggplot() + 
         geom_sf(data=geom, 
-                aes(fill=get(plot_field), alpha=include), 
+                aes(fill=get(plot_field), alpha=..include), 
                 linewidth=0) + 
         scale_alpha_manual(values=c(0.5, 1), breaks=c(0,1)) +
         guides(fill = guide_legend(plot_field)) +
@@ -282,13 +281,13 @@ patchmax <- R6::R6Class(
       if(nrow(patches) > 0){
         
         x <- private$..record_patch_stats$start
-        origins = geom %>% filter(geom$stand_id %in% x) %>% select(patch_id)
-        excluded <- geom %>% filter(patch_id != 0, include == 0)
+        origins = geom %>% filter(pull(geom, private$..param_id_field) %in% x) %>% select(..patch_id)
+        excluded <- geom %>% filter(..patch_id != 0, ..include == 0)
         
         plot <- plot +
           geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
           geom_sf(data=suppressWarnings(st_centroid(excluded)), shape=4, size=1, alpha=0.5) +
-          geom_sf_label(data=origins, aes(label=patch_id), label.r = unit(.5, "lines"))
+          geom_sf_label(data=origins, aes(label=..patch_id), label.r = unit(.5, "lines"))
       }
       
       if(return_plot){
@@ -311,14 +310,16 @@ patchmax <- R6::R6Class(
       
       # generate patch id if missing
       if(is.null(patch_id)){
-        patch_id = max(V(private$..net)$patch_id) + 1
+        patch_id = max(V(private$..net)$..patch_id) + 1
       }
       
       # pull pending patch and stand data
       patches <- private$..pending_patch_stats
       stands <- private$..pending_patch_stands %>%
-        select(!!private$..param_id_field := node, include, objective, area, constraint) %>%
-        mutate(objective = objective * include) %>%
+        select(!!private$..param_id_field := node, include, objective, area, constraint)
+      
+      stands <- stands %>%
+        mutate(objective = objective * area * include) %>%
         mutate(area = area * include) %>%
         mutate(constraint = constraint * include)
       
@@ -331,13 +332,13 @@ patchmax <- R6::R6Class(
       
       # update adjacency network
       m = match(private$..pending_patch_stands$node, vertex_attr(private$..net, 'name'))
-      V(private$..net)$patch_id[m] = patch_id
-      V(private$..net)$include[m] = patch_stands$include
+      V(private$..net)$..patch_id[m] = patch_id
+      V(private$..net)$..include[m] = patch_stands$include
       
       # update geometry data
-      m = match(private$..pending_patch_stands$node, private$..geom %>% pull(private$..param_id_field))
-      private$..geom$patch_id[m] = patch_id
-      private$..geom$include[m] = patch_stands$include
+      m = match(private$..pending_patch_stands$node, pull(private$..geom, private$..param_id_field))
+      private$..geom$..patch_id[m] = patch_id
+      private$..geom$..include[m] = patch_stands$include
       
       # reset pending data
       private$..pending_patch_stands <- NULL
@@ -354,7 +355,7 @@ patchmax <- R6::R6Class(
       
       stands <- private$..geom %>% 
         st_drop_geometry() %>% 
-        select(-include) %>%
+        select(-..include) %>%
         inner_join(self$patch_stands) %>%
         rename(DoTreat = include)
       
@@ -380,21 +381,21 @@ patchmax <- R6::R6Class(
     #' Reset recorded patches
     reset = function(patch_id = NULL){
       if(is.null(patch_id)){
-        private$..geom$patch_id = 0
-        V(private$..net)$patch_id = 0
+        private$..geom$..patch_id = 0
+        V(private$..net)$..patch_id = 0
         private$..record_patch_stands = NULL
         private$..record_patch_stats = NULL
         message('All patches reset')
       } else {
         if(patch_id < 0){
-          ids = sort(unique(private$..geom$patch_id), decreasing = T)
+          ids = sort(unique(private$..geom$..patch_id), decreasing = T)
           ids_s = ids[1:abs(patch_id)]
-          private$..geom$patch_id[private$..geom$patch_id %in% ids_s] = 0
-          V(private$..net)$patch_id[V(private$..net)$patch_id %in% ids_s] = 0
+          private$..geom$..patch_id[private$..geom$..patch_id %in% ids_s] = 0
+          V(private$..net)$..patch_id[V(private$..net)$..patch_id %in% ids_s] = 0
           message(paste0('Patches ', ids_s, ' deleted'))
         } else {
-          private$..geom$patch_id[private$..geom$patch_id %in% patch_id] = 0
-          V(private$..net)$patch_id[V(private$..net)$patch_id %in% patch_id] = 0
+          private$..geom$..patch_id[private$..geom$..patch_id %in% patch_id] = 0
+          V(private$..net)$..patch_id[V(private$..net)$..patch_id %in% patch_id] = 0
         }
       }
 
@@ -439,7 +440,7 @@ patchmax <- R6::R6Class(
     
     ..update_adj = function(){
       dst <- dist_func(
-        net = delete_vertices(private$..net, V(private$..net)$patch_id > 0),
+        net = delete_vertices(private$..net, V(private$..net)$..patch_id > 0),
         objective_field = private$..param_objective_field, 
         sdw = private$..param_sdw, 
         epw = private$..param_epw)
@@ -456,27 +457,13 @@ patchmax <- R6::R6Class(
       # modify area and distance based on threshold 
       # net <- threshold_func(
       #   net = net, 
-      #   include = V(net)$include, 
+      #   include = V(net)$..include, 
       #   area_adjust = private$..param_threshold_area_adjust, 
       #   objective_adjust = private$..param_threshold_objective_adjust)
       
       # remove stands assigned a patch id
-      net <- delete_vertices(net, V(net)$patch_id > 0)
+      net <- delete_vertices(net, V(net)$..patch_id > 0)
       return(net)
-    },
-    
-    #' @description update network to identify which stands are included or excluded
-    
-    ..set_threshold = function(){
-      if(!is.null(private$..param_threshold)){
-        net <- private$..net
-        s_txt = private$..param_threshold
-        id = private$..param_id_field
-        all_ids = dplyr::pull(vertex_attr(net), 'name')   
-        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% pull(name)
-        V(private$..net)$include = ifelse(all_ids %in% include_ids, 1, 0)
-      } else
-        V(private$..net)$include = 1
     },
 
     # check that required fields are provided
@@ -494,17 +481,27 @@ patchmax <- R6::R6Class(
     # (re)assign objective, area, and constraints to indicated fields
     ..refresh_net_attr = function(){
       if(!is.null(private$..param_objective_field)){
-        vertex_attr(private$..net, name = 'objective') <- 
-          vertex_attr(private$..net, private$..param_objective_field)
+        obj <- vertex_attr(private$..net, private$..param_objective_field)
+        area <- vertex_attr(private$..net, private$..param_area_field)
+        vertex_attr(private$..net, name = '..objective') <- obj/area
       }
       if(!is.null(private$..param_area_field)){
-        vertex_attr(private$..net, name = 'area') <- 
+        vertex_attr(private$..net, name = '..area') <- 
           vertex_attr(private$..net, private$..param_area_field)
       }
       if(!is.null(private$..param_constraint_field)){
-        vertex_attr(private$..net, name = 'constraint') <- 
+        vertex_attr(private$..net, name = '..constraint') <- 
           vertex_attr(private$..net, private$..param_constraint_field)
       }
+      if(!is.null(private$..param_threshold)){
+        net <- private$..net
+        s_txt = private$..param_threshold
+        id = private$..param_id_field
+        all_ids = dplyr::pull(vertex_attr(net), 'name')   
+        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% pull(name)
+        V(private$..net)$..include = ifelse(all_ids %in% include_ids, 1, 0)
+      } else
+        V(private$..net)$..include = 1
     }
   ),
 
@@ -584,7 +581,6 @@ patchmax <- R6::R6Class(
       } else {
         private$..param_threshold <- value
         private$..refresh_net_attr()
-        private$..set_threshold()
       }
     },
     #' @field exclusion_limit Get/set threshold limit 
@@ -595,7 +591,6 @@ patchmax <- R6::R6Class(
       } else {
         private$..param_exclusion_limit <- value
         private$..refresh_net_attr()
-        private$..set_threshold()
       }
     },
     #' @field threshold_area_adjust Get/set fraction of area to count within excluded stands
@@ -605,7 +600,6 @@ patchmax <- R6::R6Class(
       } else {
         private$..param_threshold_area_adjust <- value
         private$..refresh_net_attr()
-        private$..set_threshold()
       }
     },
     #' @field threshold_objective_adjust Get/set fraction of objective to count within excluded stands
@@ -618,7 +612,6 @@ patchmax <- R6::R6Class(
         assertive::assert_all_are_in_range(value, 0, 1, F, F)
         private$..param_threshold_objective_adjust <- value
         private$..refresh_net_attr()
-        private$..set_threshold()
       }
     },
     #' @field constraint_field Get/set secondary constraint field. Optional
