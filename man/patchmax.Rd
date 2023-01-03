@@ -9,10 +9,11 @@ view class parameters or set mutiple parameters at once (using a named list).
 }
 \examples{
 geom <- patchmax::test_forest
-pm <- patchmax$new(geom, 'stand_id', 'priority1', 'area_ha', 10000)
-pm <- pm$params = list(constraint_field = 'priority4', constraint_max = 6, area_min=800)
-pm$search(sample_frac = 1, search_plot = T)
-pm$build()$plot(show_seed = TRUE)$record()
+pm <- patchmax$new(geom, 'id', 'p1', 'ha', 20000)
+pm$params = list(constraint_field = 'p4', constraint_max = 50, area_min=10000)
+pm$search(sample_frac = .1, show_progress = T)
+pm$build()$record()
+pm$plot()
 
 }
 \section{Active bindings}{

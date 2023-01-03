@@ -24,25 +24,25 @@ search_func(
 
 \item{cpp_graph}{cpp graph object}
 
-\item{nodes}{}
+\item{nodes}{which nodes to evaluate as potential patches}
 
 \item{objective_field}{name of field containing objective values}
 
-\item{a_max}{patch size}
+\item{a_max}{maxmimum patch size}
 
-\item{a_min}{}
+\item{a_min}{minimum patch size (only applicable if constraint is present)}
 
-\item{c_max}{}
+\item{c_max}{maximum constraint value}
 
-\item{c_min}{}
+\item{c_min}{minimum constraint value}
 
-\item{t_limit}{}
+\item{t_limit}{maximum portion (0-1) of patch area excluded by threshold}
 
-\item{return_all}{}
+\item{return_all}{logical Return search values for all nodes evaluated}
 
-\item{show_progress}{}
+\item{show_progress}{logical Show progress bar}
 
-\item{print_errors}{}
+\item{print_errors}{logical Print reason for invalid search (for debugging)}
 }
 \description{
 Evaluate objective score for all or fraction of patch stand seeds

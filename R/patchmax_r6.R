@@ -5,10 +5,11 @@
 #' 
 #' @examples 
 #' geom <- patchmax::test_forest
-#' pm <- patchmax$new(geom, 'stand_id', 'priority1', 'area_ha', 10000)
-#' pm <- pm$params = list(constraint_field = 'priority4', constraint_max = 6, area_min=800)
-#' pm$search(sample_frac = 1, search_plot = T)
-#' pm$build()$plot(show_seed = TRUE)$record()
+#' pm <- patchmax$new(geom, 'id', 'p1', 'ha', 20000)
+#' pm$params = list(constraint_field = 'p4', constraint_max = 50, area_min=10000)
+#' pm$search(sample_frac = .1, show_progress = T)
+#' pm$build()$record()
+#' pm$plot()
 #'
 #' @import R6
 #' @import dplyr
@@ -49,45 +50,30 @@ patchmax <- R6::R6Class(
       area_max=NULL,
       ...
     ){
-      if(missing(geom)){
-        stop('Geometry required')
-      }
-        
-      # force id name to character
-      geom <- geom %>% mutate(!!id_field := as.character(get(id_field)))
-      
-      if(pull(geom, id_field) %>% n_distinct() < nrow(geom)){
-        stop('Stand IDs must be unique')
-      }
-      
-      # save geometry
-      private$..geom <- geom
-      
+
       # save parameters
       private$..param_id_field = id_field
       private$..param_objective_field = objective_field
       private$..param_area_field = area_field
       private$..param_area_max = area_max 
       private$..param_constraint_field = area_field
-      self$params <- list(...)
 
-      # setup key fields in geometry object
-      # private$..geom$stand_id = as.character(dplyr::pull(private$..geom, id_field))
-      private$..geom$..patch_id = 0
-      private$..geom$..include = 1
-      
+      # save geometry
+      self$geom <- geom
+
       # build adjacency network
-      private$..net <- net_func(
-        geom = private$..geom, 
-        id_field = id_field)
+      private$..net <- net_func(geom = private$..geom, id_field = id_field)
       
       # add addition fields to adjacency network
-      # NOTE reserved fields: ..objective, ..area, ..constraint, ..exclude, ..include, ..patch_id,
       a <- vertex_attr(private$..net) %>% data.frame()
       b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
       vertex_attr(private$..net) <- left_join(a, b, by='name')
-      vertex_attr(private$..net, name = '..patch_id') = 0
-      vertex_attr(private$..net, name = '..include') = 1
+      
+      # save optional parameters
+      self$params <- list(...)
+
+      # vertex_attr(private$..net, name = '..patch_id') = 0
+      # vertex_attr(private$..net, name = '..include') = 1
       
       private$..refresh_net_attr()
     },
@@ -167,7 +153,7 @@ patchmax <- R6::R6Class(
         return_all = TRUE
       }
       
-      nodes <- sample_frac(private$..geom, sample_frac, TRUE)
+      nodes <- sample_frac(private$..geom, sample_frac, private$..param_id_field, TRUE)
       
       message('Searching...')
       
@@ -404,6 +390,7 @@ patchmax <- R6::R6Class(
         } else {
           private$..geom$..patch_id[private$..geom$..patch_id %in% patch_id] = 0
           V(private$..net)$..patch_id[V(private$..net)$..patch_id %in% patch_id] = 0
+          message(paste0('Patch ', patch_id, ' deleted'))
         }
       }
 
@@ -516,8 +503,31 @@ patchmax <- R6::R6Class(
       private$..net
     },
     #' @field geom Get sf geometry object. Read only
-    geom = function(){
-      private$..geom
+    geom = function(value){
+      if(missing(value)){
+        private$..geom
+      } else {
+        
+        if(!any(class(value) == 'sf')){
+          stop('Geometry must be an sf object')
+        }
+        
+        # set key fields in geometry object
+        value <- value %>% 
+          mutate(!!private$..param_id_field := 
+                   as.character(get(private$..param_id_field))) %>%
+          mutate(..patch_id = 0) %>%
+          mutate(..include = 1) %>%
+          mutate(..objective = 0) %>%
+          mutate(..area = 0) %>%
+          mutate(..constraint = 0)
+        
+        if(pull(value, private$..param_id_field) %>% n_distinct() < nrow(value)){
+          stop('Stand IDs must be unique')
+        }
+        
+        private$..geom <- value
+      }
     },
     #' @field best Get pending stand id representing best patch origin. Read only
     best = function(){
