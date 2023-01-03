@@ -2,7 +2,7 @@
 % Please edit documentation in R/patchmax_r6_func.R
 \name{range01}
 \alias{range01}
-\title{Normalize vector to between 0 and 1}
+\title{Helper function to normalize vector to between 0 and 1}
 \usage{
 range01(x)
 }
@@ -10,5 +10,5 @@ range01(x)
 \item{x}{number or vector to normalize}
 }
 \description{
-Normalize vector to between 0 and 1
+Helper function to normalize vector to between 0 and 1
 }

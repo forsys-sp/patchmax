@@ -11,7 +11,7 @@ view class parameters or set mutiple parameters at once (using a named list).
 geom <- patchmax::test_forest
 pm <- patchmax$new(geom, 'stand_id', 'priority1', 'area_ha', 10000)
 pm <- pm$params = list(constraint_field = 'priority4', constraint_max = 6, area_min=800)
-pm$search(sample_frac = 1, plot_search = T)
+pm$search(sample_frac = 1, search_plot = T)
 pm$build()$plot(show_seed = TRUE)$record()
 
 }
@@ -28,9 +28,9 @@ pm$build()$plot(show_seed = TRUE)$record()
 
 \item{\code{pending_patch}}{Get pending patch stats. Read only}
 
-\item{\code{recorded_patch_stands}}{Get list of recorded stands}
+\item{\code{patch_stands}}{Get list of recorded stands}
 
-\item{\code{recorded_patch_stats}}{Get list of recorded patches}
+\item{\code{patch_stats}}{Get list of recorded patches}
 
 \item{\code{id_field}}{Get/set stand ID field}
 
@@ -40,7 +40,7 @@ pm$build()$plot(show_seed = TRUE)$record()
 
 \item{\code{threshold}}{Get/set threshold boolean statement}
 
-\item{\code{threshold_limit}}{Get/set threshold limit}
+\item{\code{exclusion_limit}}{Get/set threshold limit}
 
 \item{\code{threshold_area_adjust}}{Get/set fraction of area to count within excluded stands}
 
@@ -60,7 +60,7 @@ pm$build()$plot(show_seed = TRUE)$record()
 
 \item{\code{sdw}}{Get/set spatial distance weight between -1 and 1. Default 0. Patches are highly constrained by distance at -1 and unconstrained by distance at 1.}
 
-\item{\code{params}}{Get/set list of all patch parameters. Arguement is a named list if setting mutiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).}
+\item{\code{params}}{Get/set list of all patch parameters. Argument is a named list if setting multiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).}
 }
 \if{html}{\out{</div>}}
 }
@@ -73,7 +73,7 @@ pm$build()$plot(show_seed = TRUE)$record()
 \item \href{#method-patchmax-simulate}{\code{patchmax$simulate()}}
 \item \href{#method-patchmax-plot}{\code{patchmax$plot()}}
 \item \href{#method-patchmax-record}{\code{patchmax$record()}}
-\item \href{#method-patchmax-describe}{\code{patchmax$describe()}}
+\item \href{#method-patchmax-summarize}{\code{patchmax$summarize()}}
 \item \href{#method-patchmax-reset}{\code{patchmax$reset()}}
 \item \href{#method-patchmax-clone}{\code{patchmax$clone()}}
 }
@@ -89,7 +89,8 @@ Initialize new patchmax object for building patches
   id_field = NULL,
   objective_field = NULL,
   area_field = NULL,
-  area_max = NULL
+  area_max = NULL,
+  ...
 )}\if{html}{\out{</div>}}
 }
 
@@ -105,6 +106,8 @@ Initialize new patchmax object for building patches
 \item{\code{area_field}}{character Field name containing area}
 
 \item{\code{area_max}}{numeric Size of patch}
+
+\item{\code{...}}{Additional parameters to pass to \code{patchmax$params}}
 }
 \if{html}{\out{</div>}}
 }
@@ -138,9 +141,10 @@ Search patch origin with highest objective
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{patchmax$search(
   sample_frac = 0.1,
-  plot_search = FALSE,
+  search_plot = FALSE,
   return_all = FALSE,
-  show_progress = FALSE
+  show_progress = FALSE,
+  print_errors = FALSE
 )}\if{html}{\out{</div>}}
 }
 
@@ -149,11 +153,13 @@ Search patch origin with highest objective
 \describe{
 \item{\code{sample_frac}}{numeric Fraction of stands to evaluate (0-1)}
 
-\item{\code{plot_search}}{logical Map search results}
+\item{\code{search_plot}}{logical Map search results}
 
 \item{\code{return_all}}{logical Return search results}
 
 \item{\code{show_progress}}{logical Show search progress bar}
+
+\item{\code{print_errors}}{logical Print search errors to console}
 }
 \if{html}{\out{</div>}}
 }
@@ -225,14 +231,23 @@ Record selected patch
 }
 }
 \if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-patchmax-describe"></a>}}
-\if{latex}{\out{\hypertarget{method-patchmax-describe}{}}}
-\subsection{Method \code{describe()}}{
+\if{html}{\out{<a id="method-patchmax-summarize"></a>}}
+\if{latex}{\out{\hypertarget{method-patchmax-summarize}{}}}
+\subsection{Method \code{summarize()}}{
 Summarize recorded patches
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{patchmax$describe()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$summarize(group_vars = NULL, sum_vars = NULL)}\if{html}{\out{</div>}}
 }
 
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{group_vars}}{character vector Field names to group by}
+
+\item{\code{sum_vars}}{characcter vector Field naems to summarize}
+}
+\if{html}{\out{</div>}}
+}
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-patchmax-reset"></a>}}
@@ -240,7 +255,20 @@ Summarize recorded patches
 \subsection{Method \code{reset()}}{
 Reset recorded patches
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{patchmax$reset()}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$reset(patch_id = NULL)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{patch_id}}{optional. Patch ID to delete}
+}
+\if{html}{\out{</div>}}
+}
+\subsection{Details}{
+If blank, delete all patches. If negative, delete that number of the most recent patches. Else, delete patch ID equal argument.
+Update edgelist distances
+Update network adjacency network object
 }
 
 }

@@ -15,7 +15,8 @@ search_func(
   c_min = -Inf,
   t_limit = 0,
   return_all = FALSE,
-  show_progress = FALSE
+  show_progress = FALSE,
+  print_errors = FALSE
 )
 }
 \arguments{
@@ -23,17 +24,29 @@ search_func(
 
 \item{cpp_graph}{cpp graph object}
 
+\item{nodes}{}
+
 \item{objective_field}{name of field containing objective values}
 
 \item{a_max}{patch size}
 
-\item{sample_frac}{fraction of stands to evaluate}
+\item{a_min}{}
+
+\item{c_max}{}
+
+\item{c_min}{}
+
+\item{t_limit}{}
+
+\item{return_all}{}
+
+\item{show_progress}{}
+
+\item{print_errors}{}
 }
 \description{
 Evaluate objective score for all or fraction of patch stand seeds
 }
 \details{
-Calculates potential patches for all or fraction of landscape stands
-in order to identify the initial seed that leads to the highest total
-objective score.
+Calculates potential patches for all or fraction of landscape stands in order to identify the initial seed that leads to the highest total objective score.
 }

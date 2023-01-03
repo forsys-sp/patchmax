@@ -3,11 +3,10 @@
 #' Calculate stand adjacency and edgewise distances
 #'
 #' @param geom sf-type geometry with attributes 
-#' @param St_id vector of sf feature ideas (i.e., the stand id)
-#' @param buf_dist numeric distance used to buffer geometry and calculate adjacency
-#' @param calc_dist logical for calculating edgewise distance in adjacency network
+#' @param id_field vector of sf feature ideas (i.e., the stand id)
+#' @param method adjacency method to use: queen, rook, buffer
+#' @importFrom proxy dist
 #' @return adjacency network saved as an igraph network object
-#' @export
 
 net_func <- function(geom, id_field, method = 'queen') {
   
@@ -45,7 +44,7 @@ net_func <- function(geom, id_field, method = 'queen') {
     setNames(c('from','to'))
   
   # calculate pairwise distances among dyads
-  edge_attr(net) <- list(dist = proxy::dist(
+  edge_attr(net) <- list(dist = dist(
     x = xy[match(el$from, xy$name),c('X','Y')], 
     y = xy[match(el$to, xy$name),c('X','Y')], 
     pairwise = T))
@@ -59,8 +58,8 @@ net_func <- function(geom, id_field, method = 'queen') {
 #'
 #' @param net igraph adjacency network
 #' @param include logical vector of same length as the count of network nodes
-#' @param area_penality value 0-1 represent area 'cost' of excluded stands
-#' @param objective_penality value 0-1, percent contribution of excluded stands
+#' @param area_adjust value 0-1 represent area 'cost' of excluded stands
+#' @param objective_adjust value 0-1, percent contribution of excluded stands
 #'   to patch score
 #'
 #' @details By default, excluded stands don't count towards the total project
@@ -226,14 +225,20 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
 
 #' Evaluate objective score for all or fraction of patch stand seeds
 #'
-#' @param cpp_graph cpp graph object
 #' @param net igraph graph object
+#' @param cpp_graph cpp graph object
+#' @param nodes 
 #' @param objective_field name of field containing objective values
+#' @param a_min 
+#' @param c_max 
+#' @param c_min 
+#' @param t_limit 
+#' @param return_all 
+#' @param show_progress 
+#' @param print_errors 
 #' @param a_max patch size
-#' @param sample_frac fraction of stands to evaluate
-#' @details Calculates potential patches for all or fraction of landscape stands
-#'   in order to identify the initial seed that leads to the highest total
-#'   objective score.
+#'
+#' @details Calculates potential patches for all or fraction of landscape stands in order to identify the initial seed that leads to the highest total objective score.
 
   search_func <- function(
     net, 
@@ -290,7 +295,6 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
 #' Helper function to normalize vector to between 0 and 1
 #'
 #' @param x number or vector to normalize
-#' @export
 
 range01 <- function(x){
   (x-min(x))/(max(x)-min(x))
@@ -299,18 +303,16 @@ range01 <- function(x){
 #' Helper function to calculate rook adjacency in geometry
 #'
 #' @param geom sf-class geometry
-#' @export
 
-st_rook = function(a, b = a){
-  st_relate(a, b, pattern = "F***1****")
+st_rook = function(geom){
+  st_relate(geom, geom, pattern = "F***1****")
 }
 
 #' Helper function to calculate queen adjacency in geometry
 #'
 #' @param geom sf-class geometry
-#' @export
 
-st_queen <- function(a, b = a){
-  st_relate(a, b, pattern = "F***T****")
+st_queen <- function(geom){
+  st_relate(geom, geom, pattern = "F***T****")
 }
 

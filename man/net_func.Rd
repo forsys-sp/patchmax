@@ -2,22 +2,20 @@
 % Please edit documentation in R/patchmax_r6_func.R
 \name{net_func}
 \alias{net_func}
-\title{Estimates stand adjacency and calculates edgewise distances}
+\title{Calculate stand adjacency and edgewise distances}
 \usage{
-net_func(shp, St_id, calc_dist = FALSE)
+net_func(geom, id_field, method = "queen")
 }
 \arguments{
-\item{shp}{sf-type geometry with attributes}
+\item{geom}{sf-type geometry with attributes}
 
-\item{St_id}{vector of sf feature ideas (i.e., the stand id)}
+\item{id_field}{vector of sf feature ideas (i.e., the stand id)}
 
-\item{calc_dist}{logical for calculating edgewise distance in adjacency network}
-
-\item{buf_dist}{numeric distance used to buffer geometry and calculate adjacency}
+\item{method}{adjacency method to use: queen, rook, buffer}
 }
 \value{
 adjacency network saved as an igraph network object
 }
 \description{
-Estimates stand adjacency and calculates edgewise distances
+Calculate stand adjacency and edgewise distances
 }

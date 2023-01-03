@@ -39,6 +39,7 @@ patchmax <- R6::R6Class(
     #' @param objective_field character Field name containing objective values
     #' @param area_field character Field name containing area
     #' @param area_max numeric Size of patch
+    #' @param ... Additional parameters to pass to `patchmax$params`
     #'
     initialize = function(
       geom, 
@@ -125,18 +126,20 @@ patchmax <- R6::R6Class(
       # save patch stat and stand data
       private$..pending_patch_stands <- patch
       
+      sum(patch$objective * patch$threshold_met * patch$area)
+
       stats = data.frame(
         start = patch$node[1], 
         area = round(max(patch$area_cs),3),
         coverage = round(sum(patch$area),3),
-        objective = round(max(patch$objective_cs),3),
-        # objective = round(sum(patch$objective * patch$area * patch$threshold_met),3),
+        objective_area = round(max(patch$objective_cs),3),
+        objective = round(sum(patch$objective * patch$area * patch$threshold_met),3),
         constraint = round(max(patch$constraint_cs),3),
         excluded = 100-round(max(patch$area_cs)/sum(patch$area)*100))
       
       private$..pending_patch_stats = stats
       
-      message(glue::glue('Patch stats: start {stats$start}, area {stats$area}, coverage {stats$coverage}, objective {stats$objective}, constraint {stats$constraint}, excluded {stats$excluded}%'))
+      message(glue::glue('Patch stats: start {stats$start}, objective {stats$objective}, area {stats$area}, coverage {stats$coverage}, objective/area {stats$objective_area}, constraint {stats$constraint}, excluded {stats$excluded}%'))
       
       return(invisible(self))
     },
@@ -147,6 +150,7 @@ patchmax <- R6::R6Class(
     #' @param return_all logical Return search results
     #' @param show_progress logical Show search progress bar
     #' @param search_plot logical Map search results
+    #' @param print_errors logical Print search errors to console
     #'
     search = function(
       sample_frac = 0.1, 
@@ -351,6 +355,8 @@ patchmax <- R6::R6Class(
     
     #' @description 
     #' Summarize recorded patches
+    #' @param group_vars character vector Field names to group by
+    #' @param sum_vars characcter vector Field naems to summarize
     summarize = function(group_vars = NULL, sum_vars = NULL){
       
       stands <- private$..geom %>% 
@@ -379,6 +385,8 @@ patchmax <- R6::R6Class(
     
     #' @description 
     #' Reset recorded patches
+    #' @param patch_id optional. Patch ID to delete
+    #' @details If blank, delete all patches. If negative, delete that number of the most recent patches. Else, delete patch ID equal argument.
     reset = function(patch_id = NULL){
       if(is.null(patch_id)){
         private$..geom$..patch_id = 0
@@ -435,32 +443,23 @@ patchmax <- R6::R6Class(
     ..record_patch_stands = NULL,
     ..record_patch_stats = NULL,
 
-    #' @description private method. Update edgelist with distance
-    # build cpp graph object     
+    #' Update edgelist distances
     
     ..update_adj = function(){
       dst <- dist_func(
         net = delete_vertices(private$..net, V(private$..net)$..patch_id > 0),
-        objective_field = private$..param_objective_field, 
+        objective_field = '..objective',
         sdw = private$..param_sdw, 
         epw = private$..param_epw)
       return(dst)
     },
     
-    #' @description private method. Update network adjacency object
-    # update adjacency network
-    
+    #' Update network adjacency network object
+
     ..update_net = function(){
       
       net <- private$..net
-      
-      # modify area and distance based on threshold 
-      # net <- threshold_func(
-      #   net = net, 
-      #   include = V(net)$..include, 
-      #   area_adjust = private$..param_threshold_area_adjust, 
-      #   objective_adjust = private$..param_threshold_objective_adjust)
-      
+
       # remove stands assigned a patch id
       net <- delete_vertices(net, V(net)$..patch_id > 0)
       return(net)
@@ -584,7 +583,6 @@ patchmax <- R6::R6Class(
       }
     },
     #' @field exclusion_limit Get/set threshold limit 
-    #' @details Allowable percentage of stands within patch that are excluded because they do not meet the threshold). Large numbers result in larger patch coverage, even if total area treated remains limited by the max patch area.
     exclusion_limit = function(value){
       if(missing(value)){
         private$..param_exclusion_limit
@@ -648,7 +646,6 @@ patchmax <- R6::R6Class(
       }
     },
     #' @field area_max Get/set max value for area constraint
-    #' @details Patch coverage may be larger than the area_max if stand thresholds are used. Area max represents the max number of "treated" stands. 
     area_max = function(value){
       if(missing(value)){
         private$..param_area_max

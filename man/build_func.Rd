@@ -22,13 +22,13 @@ build_func(
 
 \item{net}{igraph Adjacency network with stand attributes}
 
-\item{a_max}{numeric. Target (i.e., maximum) size of patch}
+\item{a_max}{numeric. Maximum size of patch}
 
-\item{a_min}{numeric. Mininmum size of patch}
+\item{a_min}{numeric. Minimum size of patch}
 
-\item{c_max}{numeric. Maximum secondary constraint total for patch}
+\item{c_max}{numeric. Maximum secondary constraint of patch}
 
-\item{c_min}{numeric. Minimum secondary constraint total for patch}
+\item{c_min}{numeric. Minimum secondary constraint of patch}
 
 \item{c_enforce}{logical. Should patches outside of constraint be excluded?}
 }

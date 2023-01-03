@@ -13,14 +13,7 @@ Authors@R:
       role = c("aut","cre"),
       email = "cevers@pdx.edu") 
   )
-Description: Patchmax is a program used to help design and explore spatially 
-  explicit landscape treatment scenarios. Patchmax can be used to prioritize treatment 
-  location on small landscapes (project level implementation) to large landscapes 
-  (national forest to multi-regional planning efforts). Although Patchmax was 
-  originally designed for fuel treatment planning, to fill the gap between fire 
-  modeling programs and planning systems in the fuel treatment planning process,
-  it can be applied to fiber production, habitat restoration, and for other 
-  resource management problems.
+Description: Patchmax is a program used to help design and explore spatially explicit landscape treatment scenarios. Patchmax can be used to prioritize treatment location on small landscapes (project level implementation) to large landscapes (national forest to multi-regional planning efforts). Although Patchmax was originally designed for fuel treatment planning, to fill the gap between fire modeling programs and planning systems in the fuel treatment planning process, it can be applied to fiber production, habitat restoration, and for other resource management problems.
 Depends: R (>= 4.0.3)
 Imports:
   R6,
@@ -28,7 +21,11 @@ Imports:
   dplyr,
   ggplot2,
   sf,
-  furrr
+  furrr,
+  future,
+  igraph,
+  assertive,
+  proxy
 License: GPL-3
 Encoding: UTF-8
 LazyData: true

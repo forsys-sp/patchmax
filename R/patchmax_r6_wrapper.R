@@ -6,16 +6,17 @@
 #' @param St_objective numeric vector. Stands objective values
 #' @param St_seed numeric vector of stands IDs seeds. 
 #' @param P_size numeric. Project size
-#' @param P_size_slack numeric fraction [0-1]. Minimum size defined as percent
+#' @param P_size_slack numeric fraction 0-1. Minimum size defined as percent
 #'   less than project size (only used when constraint is provided)
 #' @param P_number number integer. Number of patches to simulate
 #' @param St_threshold character threshold statement (e.g., 'field > 0.5' or 'variable == 1')
-#' @param SDW numeric fraction [0-1]. Stand distance weight parameter. Default is 0.5
+#' @param SDW numeric fraction 0-1. Stand distance weight parameter. Default is 0.5
 #' @param P_constraint numeric vector. Stands values for the project
 #'   constraint.Coupled with P_constraint_max_value and P_constraint_min_value.
 #'   If NULL, then project constraint is not applied.
 #' @param P_constraint_max_value numeric. Project constraint upper value. Default is -Inf
 #' @param P_constraint_min_value numeric. Project constraint lower value. Default is Inf
+#' @param sample_frac
 #'
 #' @return list with first element describing patch-level stats and the second
 #'   element secribing stand-level stats.
@@ -32,22 +33,22 @@ simulate_projects <- function(
     St_objective,                     # REQ
     St_seed = NULL,                   # TODO
     P_size,                           # REQ
-    P_size_slack = 0.05,              # mutate to min project area
+    P_size_slack = 0.05,
     P_number = 1,                     # REQ
-    St_threshold = NULL,              # takes threshold statement as input    
-    SDW = NULL,                       # pass
-    P_constraint = NULL,              # add to geom 
-    P_constraint_max_value = Inf,     # pass
-    P_constraint_min_value = -Inf     # pass
+    St_threshold = NULL, 
+    SDW = NULL,
+    P_constraint = NULL, 
+    P_constraint_max_value = Inf,
+    P_constraint_min_value = -Inf,
+    sample_frac = 0.1
 ){
   
-  geom_s <- geom
-  geom_s$Id = St_id
-  geom_s$Area = St_area
-  geom_s$Objective = St_objective
-  geom_s$Constraint = P_constraint
-  
-  pm <- patchmax$new(geom_s, 'Id', 'Objective', 'Area', P_size)
+  geom$Id = St_id
+  geom$Area = St_area
+  geom$Objective = St_objective
+  geom$Constraint = P_constraint
+
+  pm <- patchmax$new(geom, 'Id', 'Objective', 'Area', P_size)
   pm$params <- list(
     area_min = P_size - (P_size * P_size_slack),
     sdw = SDW,
@@ -56,9 +57,8 @@ simulate_projects <- function(
     constraint_max = P_constraint_max_value,
     constraint_min = P_constraint_min_value)
   
-  
   for(i in 1:P_number){
-    pm$search(sample_frac = 1, show_progress = T)$build()$record() 
+    pm$search(sample_frac = sample_frac, show_progress = T)$build()$record() 
   }
   
   out_a <- pm$patch_stats %>% select(
@@ -71,7 +71,7 @@ simulate_projects <- function(
   
   out_b <- pm$patch_stands %>% select(
     Project = patch_id,
-    Stands = node,
+    Stands = 2,
     DoTreat = include,
     Area = area,
     Objective = objective,
