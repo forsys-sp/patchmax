@@ -15,16 +15,19 @@ runbfs <- function(r) {
 runbfs_func <- function(r) {
   
   tryCatch({
+    # order stands by breadth first distance search
     BFS <- igraph::bfs(St_adj, root = r, unreachable = FALSE)
     BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
     BFS_Stands2 <- match(BFS_Stands, St_id)
     
     if(!is.null(St_distances) & length(BFS_Stands2) > 1){
+      # order projects by distance
       SDW_objective <- St_distances[BFS_Stands2,BFS_Stands2[1]]
       SDW_objective_sorted <- c(SDW_objective[1],sort(SDW_objective[2:length(SDW_objective)], decreasing = TRUE))
       BFS_Stands2 <- as.numeric(names(SDW_objective_sorted))
     }
     
+    # calculate cumulative sum of area in order of stand rank
     Areas <- cumsum(St_area[BFS_Stands2])
     Areas_table <- data.table::data.table(Csum = Areas, val = Areas)
     setattr(Areas_table, "sorted", "Csum")
@@ -32,10 +35,14 @@ runbfs_func <- function(r) {
     contad <- limit_position
     Invalid <- NULL
     
+    # exit if outside area slack limit
     if (Areas[limit_position] > P_size * (1 + P_size_slack)) {
       return ()
     }
     
+    # identifying last position in project stand order where cumulative constraint 
+    # is greater than the min and less than the max. Replace limit position with last 
+    # position where both are true.
     if (!is.null(P_constraint)) {
       Constraint <- cumsum(P_constraint[BFS_Stands2[1:limit_position]])
       Constraint_table <- data.table::data.table(Csum = Constraint, step1 = 0, step2 = 0)
@@ -51,22 +58,32 @@ runbfs_func <- function(r) {
       }
     }
     
+    # record stand project stats
     Stands_block <- BFS_Stands2[1:limit_position]
     Block_area <- sum(St_area[Stands_block])
     N_vertices <- length(Stands_block)
     
+    # tally objective 
     if(!is.null(St_distances) & length(Stands_block) > 1){
       Block_Objective <- sum(SDW_objective_sorted[1:limit_position])
     } else {
       Block_Objective <- sum(St_objective[Stands_block])
     }
     
+    # constraint types:
+    # 0: within area slack
+    # 1: within area slick with constraint
+    # 2: outside area slack due to constraint
+    # 3: outside area slack
+    
+    # assign type constraints if no secondary constraint
     if (is.null(P_constraint)) {
-      type_constraint <- 0
-      if (P_size * ((P_size_slack - 1)*-1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
+      type_constraint <- 0 # valid & non-constrained
+      # if min slack is less than project area and max slack is greater than project area
+      if (P_size * ((P_size_slack - 1) * -1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
         return(list(r, N_vertices, Block_Objective,type_constraint))
       } else if (Block_area > Candidate_min_size) {
-        type_constraint <- 3
+        type_constraint <- 3 # invalid & non-constrained
         return(list(r, N_vertices, Block_Objective,type_constraint))
       } else {
         return ()
@@ -75,21 +92,21 @@ runbfs_func <- function(r) {
     
     if (!is.null(Invalid)) {
       if (Block_area > Candidate_min_size){
-        type_constraint <- 3
-        return(list(r, N_vertices, Block_Objective,type_constraint))
+        type_constraint <- 3 # invalid & non-constrained
+        return(list(r, N_vertices, Block_Objective, type_constraint))
       } else {
         return ()
       }
     }
     
-    #
+    # return project output if secondary constraint exists
     if (!is.null(P_constraint)) {
-      if (P_size * ((P_size_slack - 1)*-1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
-        type_constraint <- 1
-        return(list(r, N_vertices, Block_Objective,type_constraint))
+      if (P_size * ((P_size_slack - 1) * -1) < Block_area & P_size * (1 + P_size_slack) > Block_area) {
+        type_constraint <- 1 # valid & constrained
+        return(list(r, N_vertices, Block_Objective, type_constraint))
       } else {
-        type_constraint <- 2
-        return(list(r, N_vertices, Block_Objective,type_constraint))
+        type_constraint <- 2 # invalid & constrained
+        return(list(r, N_vertices, Block_Objective, type_constraint))
       }
     }
   }, error = function(e){
@@ -116,7 +133,7 @@ runbfs_func <- function(r) {
 #' @param P_constraint_min_value Project constraint lower value.
 #' @param Candidate_min_size Minimal size for project coded with types 2 and 3. If NULL, then the value = ‘0.25*P_size’ is used by default. Project type codes interpret if the project is valid (i.e. if P_size apply), constrained (i.e. if P_constraint apply) or none of them. Where type 0 are valid non-constrained projects (i.e. only P_size apply), type 1 are valid constrained projects (i.e. P_size and P_constraint apply), type 2 are invalid constrained projects (i.e. P_size does not apply but P_constraint apply) and type 3 are non-optimized projects that can be invalid and/or non-constrained (i.e. P_size and/or P_constraint do not apply).
 #'
-#' @return
+#' @return matrix containing stand id, stand count, objective score, and type where type = 0 are valid non-contained projects, type = 1 are valid constrained projects, type = 2 are invalid constrained projects, and type == 3 are invalid and non-constrained
 #' @export
 #'
 #' @importFrom igraph bfs
@@ -208,6 +225,15 @@ simulate_projects_func <- function(
   
   if(is.null(St_seed)){St_seed = St_id}
   
+  # 1. set P_size_slack to 0 if null; 
+  # 2. set St_seed to all St_id if null;
+  # 3. zero out area, objective & constraint where stand less than threshold;
+  # 4. set min project size to 25% desire if null;
+  # 5. while projects are less than max
+  #     a. search for best project
+  #     b. build best project
+  #     c. tally project area, objective, 
+  
   if (!is.null(St_threshold_value)) {
     St_area[which(St_threshold < St_threshold_value)] <- 0
     St_objective[which(St_threshold < St_threshold_value)] <- 0
@@ -272,21 +298,22 @@ simulate_projects_func <- function(
   b = 1
   s = 0
   
-  
+  # 
   while(b <= P_number & s <= P_size_ceiling){
     
     cat(paste0("\nProject #", b, '\n'))
     
-    
+    # search for best project among all remaining nodes
     if(b == 1){
       Seeds <- match(St_seed, as.numeric(V(St_adj)$name))
       Seeds <- Seeds[!is.na(Seeds)]
       result <- pbapply::pblapply(Seeds, runbfs, cl=cl)
     } else {
+      # if not first project example feasible nodes
       result <- pbapply::pblapply(feasible_positions, runbfs, cl=cl)
     }
     
-    
+    # if valid result 
     if (!is.null(unlist(result))){
       
       output <- data.table::as.data.table(matrix(unlist(result), ncol = 4, byrow = TRUE))
@@ -294,7 +321,6 @@ simulate_projects_func <- function(
       feasible_seeds <- output$V1
       feasible_vertices <- V(St_adj)[feasible_seeds]
 
-      
       output2 <- subset(output, V4 %in% c(0,1,2))
       output3 <- subset(output, V4 %in% c(3))
       if(nrow(output2) >= 1) {
@@ -303,12 +329,12 @@ simulate_projects_func <- function(
         output <- output3
       }
       
+      # build project for best candidate
       best <- head(output[V3 == max(V3)], 1)
       best_r <- best$V1
       
       BFS <- igraph::bfs(St_adj, root = best_r, unreachable = FALSE)
       BFS_Stands <- as.numeric(BFS$order[!is.na(BFS$order)]$name)
-      
       BFS_Stands2 <- match(BFS_Stands, St_id)
       
       if(!is.null(St_distances)){
@@ -317,6 +343,7 @@ simulate_projects_func <- function(
         BFS_Stands2 <- as.numeric(names(SDW_objective_sorted))
       }
       
+      # tally stats for treated stands
       Stands_block <- BFS_Stands2[1:best$V2]
       Stands_treat <- BFS_Stands2[1:best$V2]
       
@@ -361,18 +388,21 @@ simulate_projects_func <- function(
       
       Blocks_table <- rbind(Blocks_table, Blocks_table2)
       
+      # report key stats
       cat(paste0("  treated area: ", round(Block_area, 2),
                  "; total selected area:", round(Total_block_area, 2),
                  "; objective value: ", round(Block_Objective, 2),
                  "; constraint: ", Block_constraint,
                  "; project type: ",best$V4))
       
+      # delete selects stands from adjacency graph
       St_adj <- igraph::delete.vertices(St_adj, BFS$order[1:best$V2])
       
-      #####Eliminate unfeasible candidates
+      # eliminate unfeasible candidates
       feasible_vertices2 <- feasible_vertices[!feasible_vertices %in% BFS$order[Positions_BFS]]
       feasible_positions <- match(as.numeric(feasible_vertices2$name), as.numeric(V(St_adj)$name))
       
+      # update cluster environment
       parallel::clusterExport(cl = cl, 
                               varlist = c("St_adj","feasible_positions"), 
                               envir = environment())

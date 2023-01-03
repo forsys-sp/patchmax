@@ -1,0 +1,728 @@
+#' @title Patchmax Class
+#'
+#' @description Patchmax patch selection object. Use params active binding to
+#' view class parameters or set mutiple parameters at once (using a named list).
+#' 
+#' @examples 
+#' geom <- patchmax::test_forest
+#' pm <- patchmax$new(geom, 'id', 'p1', 'ha', 20000)
+#' pm$params = list(constraint_field = 'p4', constraint_max = 50, area_min=10000)
+#' pm$search(sample_frac = .1, show_progress = T)
+#' pm$build()$record()
+#' pm$plot()
+#'
+#' @import R6
+#' @import dplyr
+#' @import ggplot2
+#' @import cppRouting
+#' @import sf
+#' @import furrr
+#' @import assertive
+#' @importFrom future plan multisession
+#' @importFrom igraph V V<- vertex_attr graph_from_data_frame edge_attr<- vertex_attr<- delete_vertices E
+#'
+#' @export
+
+patchmax <- R6::R6Class(
+  classname = "patchmax",
+  
+  # //////////////////////////////////////////////////////////////////////////
+  # PUBLIC ELEMENTS ------------------------------
+  # external methods for running patchmax
+  # //////////////////////////////////////////////////////////////////////////
+  
+  public = list(
+    
+    # ..........................................................................
+    #' @description Initialize new patchmax object for building patches
+    #' @param geom sf Dataframe like sf object with geomerty
+    #' @param id_field character Field name containing unique IDs
+    #' @param objective_field character Field name containing objective values
+    #' @param area_field character Field name containing area
+    #' @param area_max numeric Size of patch
+    #' @param ... Additional parameters to pass to `patchmax$params`
+    #'
+    initialize = function(
+      geom, 
+      id_field=NULL, 
+      objective_field=NULL, 
+      area_field=NULL, 
+      area_max=NULL,
+      ...
+    ){
+
+      # save parameters
+      private$..param_id_field = id_field
+      private$..param_objective_field = objective_field
+      private$..param_area_field = area_field
+      private$..param_area_max = area_max 
+      private$..param_constraint_field = area_field
+
+      # save geometry
+      self$geom <- geom
+
+      # build adjacency network
+      private$..net <- net_func(geom = private$..geom, id_field = id_field)
+      
+      # add addition fields to adjacency network
+      a <- vertex_attr(private$..net) %>% data.frame()
+      b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
+      vertex_attr(private$..net) <- left_join(a, b, by='name')
+      
+      # save optional parameters
+      self$params <- list(...)
+
+      # vertex_attr(private$..net, name = '..patch_id') = 0
+      # vertex_attr(private$..net, name = '..include') = 1
+      
+      private$..refresh_net_attr()
+    },
+    
+    # ..........................................................................
+    #' @description Build patch at selected node
+    #' @param node character. Stand ID used to build patch (optional)
+    #' @details If node is NULL, use stand id found during search
+    #' 
+    build = function(node=NULL){
+      
+      if(is.null(node)){
+        node <- private$..pending_origin
+      }
+      
+      private$..check_req_fields()
+      
+      patch <- build_func(
+        start_node = node, 
+        cpp_graph = private$..update_adj(), 
+        net = private$..update_net(),
+        a_max = private$..param_area_max,
+        a_min = private$..param_area_min,
+        c_max = private$..param_constraint_max,
+        c_min = private$..param_constraint_min)
+      
+      # append auxiliary stand data
+      aux_data <- vertex_attr(private$..net) %>% 
+        select(
+          node = name, 
+          private$..param_objective_field, 
+          original_area = ..area)
+      
+      patch <- left_join(patch, aux_data, by='node', suffix = c('','.x'))
+      
+      # save patch stat and stand data
+      private$..pending_patch_stands <- patch
+      
+      sum(patch$objective * patch$threshold_met * patch$area)
+
+      stats = data.frame(
+        start = patch$node[1], 
+        area = round(max(patch$area_cs),3),
+        coverage = round(sum(patch$area),3),
+        objective_area = round(max(patch$objective_cs),3),
+        objective = round(sum(patch$objective * patch$area * patch$threshold_met),3),
+        constraint = round(max(patch$constraint_cs),3),
+        excluded = 100-round(max(patch$area_cs)/sum(patch$area)*100))
+      
+      private$..pending_patch_stats = stats
+      
+      message(glue::glue('Patch stats: start {stats$start}, objective {stats$objective}, area {stats$area}, coverage {stats$coverage}, objective/area {stats$objective_area}, constraint {stats$constraint}, excluded {stats$excluded}%'))
+      
+      return(invisible(self))
+    },
+    
+    # ..........................................................................
+    #' @description Search patch origin with highest objective
+    #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
+    #' @param return_all logical Return search results
+    #' @param show_progress logical Show search progress bar
+    #' @param search_plot logical Map search results
+    #' @param print_errors logical Print search errors to console
+    #'
+    search = function(
+      sample_frac = 0.1, 
+      search_plot = FALSE, 
+      return_all = FALSE, 
+      show_progress = FALSE,
+      print_errors = FALSE
+    ) {
+      
+      private$..check_req_fields()
+      private$..update_adj()
+      
+      if(search_plot){
+        return_all = TRUE
+      }
+      
+      nodes <- sample_frac(private$..geom, sample_frac, private$..param_id_field, TRUE)
+      
+      message('Searching...')
+      
+      search_out <- search_func(
+        cpp_graph = private$..update_adj(), 
+        net = private$..update_net(), 
+        nodes = nodes,
+        objective_field = private$..param_objective_field, 
+        a_max = private$..param_area_max,
+        a_min = private$..param_area_min,
+        c_max = private$..param_constraint_max,
+        c_min = private$..param_constraint_min,
+        t_limit = private$..param_exclusion_limit,
+        return_all = return_all,
+        show_progress = show_progress, 
+        print_errors = print_errors)
+      
+      best_out = names(search_out)[which.max(search_out)]
+      message(glue::glue('\nBest start: {best_out} ({round(sample_frac*100)}% search)'))
+      private$..pending_origin <- best_out
+      
+      # >>>>> Debugging: plot search results  <<<<<<<<
+      if(search_plot){
+        # make search plot
+        search_dat <- data.frame(names(search_out), search_out = as.numeric(search_out)) %>%
+          rename(!!private$..param_id_field := 1)
+        pdat <- dplyr::inner_join(
+          x = private$..geom, 
+          y = search_dat, 
+          by=private$..param_id_field)
+        # identify best origin
+        origin <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
+        # build best patch
+        self$build(best_out)
+        patch_geom <- self$geom %>% 
+          filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
+          summarize()
+        p1 <- ggplot() + 
+          geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
+          geom_sf(data=suppressWarnings(st_centroid(origin)), size=4, shape=5) +
+          scale_fill_gradientn(colors = sf.colors(10)) +
+          theme(legend.position = 'bottom') +
+          theme_void() + 
+          geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
+        print(p1)
+      }
+      # >>>>> End plot search results <<<<<<<<
+      
+      if(return_all){
+        x = private$..geom
+        index = match(names(search_out), dplyr::pull(x,private$..param_id_field))
+        x[index,'search_score'] <- search_out
+        private$..geom = x
+      }
+      
+      return(invisible(self))
+    },
+    
+    # ..........................................................................
+    #' @description Search, build, and record multiple patches in sequence
+    #' @param n_projects integer. Number of patches to build
+    #' @param sample_frac numeric. Fraction of stands to evaluate for patches
+    #'
+    simulate = function(n_projects = 1, sample_frac = 0.1){
+      for(i in 1:n_projects){
+        self$search(sample_frac = sample_frac)$build()$record() 
+      }
+      return(invisible(self))
+    },
+    
+    # ..........................................................................
+    #' @description Plot patch and stand map
+    #' @param plot_field character Field name to plot
+    #' @param return_plot logical Return ggplot object
+    #' @param show_origin logical 
+    #' @param apply_threshold logical
+    #'
+    plot = function(plot_field = NULL, 
+                    return_plot = FALSE, 
+                    show_origin = FALSE,
+                    apply_threshold = FALSE
+                    ){
+      
+      plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
+      
+      # base data
+      geom <- private$..geom
+      net <- private$..net
+      
+      if(apply_threshold){
+        patches = geom %>% filter(..include == 1, ..patch_id != 0) 
+      } else {
+        patches = geom %>% filter(..patch_id != 0)
+      }
+      
+      patches <- patches %>% group_by(..patch_id) %>% summarize()
+      
+      # add include field for plotting
+      geom$..include = vertex_attr(net, '..include', match(pull(geom, private$..param_id_field), V(net)$name))
+      geom$..include = factor(geom$..include, c(0,1))
+      
+      plot = ggplot() + 
+        geom_sf(data=geom, 
+                aes(fill=get(plot_field), alpha=..include), 
+                linewidth=0) + 
+        scale_alpha_manual(values=c(0.5, 1), breaks=c(0,1)) +
+        guides(fill = guide_legend(plot_field)) +
+        theme(legend.position = 'bottom') +
+        theme_void() 
+      
+      if(!class(geom %>% pull(get(plot_field))) %in% c('character','logical','factor')){
+        plot = plot + scale_fill_gradientn(colors = sf.colors(10))
+      }
+      
+      if(nrow(patches) > 0){
+        
+        x <- private$..record_patch_stats$start
+        origins = geom %>% filter(pull(geom, private$..param_id_field) %in% x) %>% select(..patch_id)
+        excluded <- geom %>% filter(..patch_id != 0, ..include == 0)
+        
+        plot <- plot +
+          geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
+          geom_sf(data=suppressWarnings(st_centroid(excluded)), shape=4, size=1, alpha=0.5) +
+          geom_sf_label(data=origins, aes(label=..patch_id), label.r = unit(.5, "lines"))
+      }
+      
+      if(return_plot){
+        return(plot)
+      } else {
+        print(plot) 
+      }
+      return(invisible(self))
+    },
+    
+    # ..........................................................................
+    #' @description 
+    #' Record selected patch
+    #' @param patch_id integer/character Patch name. If null, add one to highest
+    #' @param enforce_constraint logical Apply secondary constraint
+    
+    record = function(patch_id = NULL, enforce_constraint = TRUE){
+      if(is.null(private$..pending_patch_stands))
+        stop('No patch. Run search or select first.')
+      
+      # generate patch id if missing
+      if(is.null(patch_id)){
+        patch_id = max(V(private$..net)$..patch_id) + 1
+      }
+      
+      # pull pending patch and stand data
+      patches <- private$..pending_patch_stats
+      stands <- private$..pending_patch_stands %>%
+        select(!!private$..param_id_field := node, include, objective, area, constraint)
+      
+      stands <- stands %>%
+        mutate(objective = objective * area * include) %>%
+        mutate(area = area * include) %>%
+        mutate(constraint = constraint * include)
+      
+      # record data
+      patch_stats <- data.frame(patch_id = patch_id, patches)
+      patch_stands <- data.frame(patch_id = patch_id, stands)
+
+      private$..record_patch_stats <- bind_rows(private$..record_patch_stats, patch_stats)
+      private$..record_patch_stands <- bind_rows(private$..record_patch_stands, patch_stands)
+      
+      # update adjacency network
+      m = match(private$..pending_patch_stands$node, vertex_attr(private$..net, 'name'))
+      V(private$..net)$..patch_id[m] = patch_id
+      V(private$..net)$..include[m] = patch_stands$include
+      
+      # update geometry data
+      m = match(private$..pending_patch_stands$node, pull(private$..geom, private$..param_id_field))
+      private$..geom$..patch_id[m] = patch_id
+      private$..geom$..include[m] = patch_stands$include
+      
+      # reset pending data
+      private$..pending_patch_stands <- NULL
+      private$..pending_patch_stats <- NULL
+      
+      message(glue::glue('Patch {patch_id} recorded\n-------------'))
+      
+      return(invisible(self))
+    },
+    
+    #' @description 
+    #' Summarize recorded patches
+    #' @param group_vars character vector Field names to group by
+    #' @param sum_vars characcter vector Field naems to summarize
+    summarize = function(group_vars = NULL, sum_vars = NULL){
+      
+      stands <- private$..geom %>% 
+        st_drop_geometry() %>% 
+        select(-..include) %>%
+        inner_join(self$patch_stands) %>%
+        rename(DoTreat = include)
+      
+      sum_vars <- c(private$..param_objective_field,
+                private$..param_area_field,
+                private$..param_constraint_field,
+                sum_vars)
+      
+      if(!is.null(private$..param_threshold)){
+        group_vars <- c('patch_id','DoTreat', group_vars)
+      } else {
+        group_vars <- c('patch_id', group_vars)
+      }
+      
+      sum_out <- stands %>% 
+        group_by_at(vars(group_vars)) %>%
+        summarize_at(vars(sum_vars), sum)
+      
+      return(sum_out)
+    },
+    
+    #' @description 
+    #' Reset recorded patches
+    #' @param patch_id optional. Patch ID to delete
+    #' @details If blank, delete all patches. If negative, delete that number of the most recent patches. Else, delete patch ID equal argument.
+    reset = function(patch_id = NULL){
+      if(is.null(patch_id)){
+        private$..geom$..patch_id = 0
+        V(private$..net)$..patch_id = 0
+        private$..record_patch_stands = NULL
+        private$..record_patch_stats = NULL
+        message('All patches reset')
+      } else {
+        if(patch_id < 0){
+          ids = sort(unique(private$..geom$..patch_id), decreasing = T)
+          ids_s = ids[1:abs(patch_id)]
+          private$..geom$..patch_id[private$..geom$..patch_id %in% ids_s] = 0
+          V(private$..net)$..patch_id[V(private$..net)$..patch_id %in% ids_s] = 0
+          message(paste0('Patches ', ids_s, ' deleted'))
+        } else {
+          private$..geom$..patch_id[private$..geom$..patch_id %in% patch_id] = 0
+          V(private$..net)$..patch_id[V(private$..net)$..patch_id %in% patch_id] = 0
+          message(paste0('Patch ', patch_id, ' deleted'))
+        }
+      }
+
+      private$..pending_patch_stands = NULL
+      private$..pending_patch_stats = NULL
+      private$..pending_origin = NULL
+      return(invisible(self))
+    }
+  ),
+  
+  # //////////////////////////////////////////////////////////////////////////
+  # PRIVATE ELEMENTS ------------------------------
+  # internal aspects of the patchmax generator
+  # ////////////////////////////////////////////////////////////////////////// 
+  
+  private = list(
+    ..net = NULL,
+    ..geom = NULL,
+    ..cpp_graph = NULL,
+    ..param_id_field = NULL,
+    ..param_objective_field = NULL,
+    ..param_area_field = NULL,
+    ..param_area_max = NULL,
+    ..param_area_min = -Inf,
+    ..param_threshold = NULL,
+    ..param_threshold_area_adjust = 0,
+    ..param_threshold_objective_adjust = 0,
+    ..param_exclusion_limit = 0.5,
+    ..param_constraint_field = NULL,
+    ..param_constraint_max = Inf,
+    ..param_constraint_min = -Inf,
+    ..param_sdw = 0.5,
+    ..param_epw = 0.5,
+    ..pending_patch_stands = NULL,
+    ..pending_patch_stats = NULL,
+    ..pending_origin = NULL,
+    ..record_patch_stands = NULL,
+    ..record_patch_stats = NULL,
+
+    #' Update edgelist distances
+    
+    ..update_adj = function(){
+      dst <- dist_func(
+        net = delete_vertices(private$..net, V(private$..net)$..patch_id > 0),
+        objective_field = '..objective',
+        sdw = private$..param_sdw, 
+        epw = private$..param_epw)
+      return(dst)
+    },
+    
+    #' Update network adjacency network object
+
+    ..update_net = function(){
+      
+      net <- private$..net
+
+      # remove stands assigned a patch id
+      net <- delete_vertices(net, V(net)$..patch_id > 0)
+      return(net)
+    },
+
+    # check that required fields are provided
+    ..check_req_fields = function(){
+      if(is.null(private$..param_id_field))
+        stop('id field is missing')
+      if(is.null(private$..param_objective_field))
+        stop('objective field is missing')
+      if(is.null(private$..param_area_max))
+        stop('patch area is missing')
+      if(is.null(private$..param_area_field))
+        stop('area field is missing')
+    },
+
+    # (re)assign objective, area, and constraints to indicated fields
+    ..refresh_net_attr = function(){
+      if(!is.null(private$..param_objective_field)){
+        obj <- vertex_attr(private$..net, private$..param_objective_field)
+        area <- vertex_attr(private$..net, private$..param_area_field)
+        vertex_attr(private$..net, name = '..objective') <- obj/area
+      }
+      if(!is.null(private$..param_area_field)){
+        vertex_attr(private$..net, name = '..area') <- 
+          vertex_attr(private$..net, private$..param_area_field)
+      }
+      if(!is.null(private$..param_constraint_field)){
+        vertex_attr(private$..net, name = '..constraint') <- 
+          vertex_attr(private$..net, private$..param_constraint_field)
+      }
+      if(!is.null(private$..param_threshold)){
+        net <- private$..net
+        s_txt = private$..param_threshold
+        id = private$..param_id_field
+        all_ids = dplyr::pull(vertex_attr(net), 'name')   
+        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% pull(name)
+        V(private$..net)$..include = ifelse(all_ids %in% include_ids, 1, 0)
+      } else
+        V(private$..net)$..include = 1
+    }
+  ),
+
+  # //////////////////////////////////////////////////////////////////////////
+  # ACTIVE BINDINGS ------------------------------
+  # used for getting and setting private elements
+  # //////////////////////////////////////////////////////////////////////////
+  
+  active = list(
+    
+    #' @field net Get igraph object. Read only
+    net = function(){
+      private$..net
+    },
+    #' @field geom Get sf geometry object. Read only
+    geom = function(value){
+      if(missing(value)){
+        private$..geom
+      } else {
+        
+        if(!any(class(value) == 'sf')){
+          stop('Geometry must be an sf object')
+        }
+        
+        # set key fields in geometry object
+        value <- value %>% 
+          mutate(!!private$..param_id_field := 
+                   as.character(get(private$..param_id_field))) %>%
+          mutate(..patch_id = 0) %>%
+          mutate(..include = 1) %>%
+          mutate(..objective = 0) %>%
+          mutate(..area = 0) %>%
+          mutate(..constraint = 0)
+        
+        if(pull(value, private$..param_id_field) %>% n_distinct() < nrow(value)){
+          stop('Stand IDs must be unique')
+        }
+        
+        private$..geom <- value
+      }
+    },
+    #' @field best Get pending stand id representing best patch origin. Read only
+    best = function(){
+      private$..pending_origin
+    },
+    #' @field pending_stands Get stands in pending patch. Read only
+    pending_stands = function(){
+      private$..pending_patch_stands
+    },
+    #' @field pending_patch Get pending patch stats. Read only
+    pending_patch = function(){
+      private$..pending_patch_stats
+    },
+    #' @field patch_stands Get list of recorded stands
+    patch_stands = function(){
+      private$..record_patch_stands
+    },
+    #' @field patch_stats
+    #'  Get list of recorded patches
+    patch_stats = function(){
+      private$..record_patch_stats
+    },
+    #' @field id_field Get/set stand ID field
+    id_field = function(value){
+      if(missing(value)){
+        private$..param_id_field
+      } else {
+        assertive::assert_is_character(value)
+        assertive::is_of_length(value, 1)
+        private$..param_id_field <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field objective_field Get/set objective field
+    objective_field = function(value){
+      if(missing(value)){
+        private$..param_objective_field
+      } else {
+        assertive::assert_is_character(value)
+        assertive::is_of_length(value, 1)
+        private$..param_objective_field <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field area_field Get/set area field
+    area_field = function(value){
+      if(missing(value)){
+        private$..param_area_field
+      } else {
+        assertive::assert_is_character(value)
+        assertive::is_of_length(value, 1)
+        private$..param_area_field <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field threshold Get/set threshold boolean statement
+    threshold = function(value){
+      if(missing(value)){
+        private$..param_threshold
+      } else {
+        private$..param_threshold <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field exclusion_limit Get/set threshold limit 
+    exclusion_limit = function(value){
+      if(missing(value)){
+        private$..param_exclusion_limit
+      } else {
+        private$..param_exclusion_limit <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field threshold_area_adjust Get/set fraction of area to count within excluded stands
+    threshold_area_adjust = function(value){
+      if(missing(value)){
+        private$..param_threshold_area_adjust
+      } else {
+        private$..param_threshold_area_adjust <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field threshold_objective_adjust Get/set fraction of objective to count within excluded stands
+    threshold_objective_adjust = function(value){
+      if(missing(value)){
+        private$..param_threshold_objective_adjust
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::assert_is_of_length(value, 1)
+        assertive::assert_all_are_in_range(value, 0, 1, F, F)
+        private$..param_threshold_objective_adjust <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field constraint_field Get/set secondary constraint field. Optional
+    constraint_field = function(value){
+      if(missing(value)){
+        private$..param_constraint_field
+      } else {
+        assertive::assert_is_character(value)
+        assertive::is_of_length(value, 1)
+        private$..param_constraint_field <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field constraint_max Get/set max value for secondary constraint (e.g., max budget)
+    constraint_max = function(value){
+      if(missing(value)){
+        private$..param_constraint_max
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
+        private$..param_constraint_max <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field constraint_min Get/set min value for secondary constraint
+    constraint_min = function(value){
+      if(missing(value)){
+        private$..param_constraint_min
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
+        private$..param_constraint_min <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field area_max Get/set max value for area constraint
+    area_max = function(value){
+      if(missing(value)){
+        private$..param_area_max
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
+        assertive::is_positive(value)
+        private$..param_area_max <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field area_min Get/set min value for area constraint
+    area_min = function(value){
+      if(missing(value)){
+        private$..param_area_min
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
+        assertive::is_in_range(value, 0, 1, FALSE, FALSE)
+        private$..param_area_min <- value
+        private$..refresh_net_attr()
+      }
+    },
+    #' @field epw Get/set exclusion penality weight between -1 and 1. Default 0. At 0, patches neither privilege or penalize excluded ares. Values closer to 1 enact a greater cost on projects spanning areas excluded by the project stand threshold. Values less than 0 readily search out excluded areas.
+    epw = function(value){
+      if(missing(value)){
+        private$..param_epw
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::assert_is_of_length(value, 1)
+        assertive::assert_all_are_in_range(value, -1, 1, F, F)
+        private$..param_epw <- value
+      }
+    },
+    #' @field sdw Get/set spatial distance weight between -1 and 1. Default 0. Patches are highly constrained by distance at -1 and unconstrained by distance at 1. 
+    sdw = function(value){
+      if(missing(value)){
+        private$..param_sdw
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::assert_is_of_length(value, 1)
+        assertive::assert_all_are_in_range(value, -1, 1, F, F)
+        private$..param_sdw <- value
+      }
+    },
+    #' @field params Get/set list of all patch parameters. Argument is a named list if setting multiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).
+    params = function(value){
+      if(missing(value)){
+        nm <- names(private)
+        nm_p <- nm[grepl('..param', nm)]
+        params <- nm_p %>% lapply(function(x) get(x, envir = private))
+        names(params) <- gsub('..param_','', nm_p)
+        str(params)
+      } else {
+        assertive::assert_is_list(value)
+        for(i in seq_along(value)){
+          tryCatch({
+            # nm_p = paste0('..param_',names(value)[i])
+            nm = names(value)[i]
+            assign(nm, value = value[i][[1]], envir = self)
+          }, error = function(e){
+            # message(paste0('Parameter ', i, ' ', names(value)[i], ' not found'))
+            print(e)
+          })
+        }
+      }
+    }
+  )
+)
+    

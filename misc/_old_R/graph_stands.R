@@ -17,14 +17,16 @@ calculate_adj <- function(
   Shapefile, 
   Adjdist = 1, 
   St_id,
-  method = 'buffer'
+  method = 'buffer',
+  calc_dst = FALSE
   ) {
   
   calculate_adj_func(
     Shapefile = Shapefile, 
     Adjdist = Adjdist, 
     St_id = St_id,
-    method
+    method = method,
+    calc_dist = calc_dst
     )
 }
 
@@ -33,22 +35,22 @@ calculate_adj_func <- function(
   Shapefile, 
   Adjdist, 
   St_id,
-  method
+  method,
+  calc_dist = FALSE
   ) {
   
-  if(method == 'nb'){
-    # neighbor approach
-    nb <- spdep::poly2nb(Shapefile)
-    adj0 <- spdep::nb2mat(nb, style = 'B', zero.policy = TRUE)
-    adj1 <- reshape2::melt(adj0) %>% dplyr::filter(value == 1)
-    adj2 <- data.frame(A = St_id[adj1$Var1], B = St_id[adj1$Var2])
-    g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
-  } else if(method == 'buffer') {
-    # buffer approach
-    shapefile2 <- Shapefile %>% sf::st_buffer(dist = Adjdist)
-    adj <- sf::st_overlaps(shapefile2, sparse = TRUE) %>% data.frame()
-    adj2 <- data.frame(A = St_id[adj$row.id], B = St_id[adj$col.id])
-    g <- igraph::graph_from_data_frame(adj2, directed = TRUE, vertices = NULL)
+  # buffer approach
+  shapefile2 <- Shapefile %>% sf::st_buffer(dist = Adjdist)
+  adj <- sf::st_overlaps(shapefile2, sparse = TRUE) %>% data.frame()
+  adj2 <- data.frame(A = St_id[adj$row.id], B = St_id[adj$col.id])
+  g <- igraph::graph_from_data_frame(adj2, directed = TRUE)
+  
+  if(calc_dist){
+    xy <- st_centroid(Shapefile) %>% st_coordinates() %>% as.data.frame()
+    V(g)$X <- xy$X
+    V(g)$Y <- xy$Y
+    el <- igraph::as_edgelist(g, names=T) %>% as.data.frame() %>% setNames(c('from','to'))
+    edge_attr(g) <- list(dist = proxy::dist(xy[el$from,], xy[el$to,], pairwise = T))
   }
   
   return(g)

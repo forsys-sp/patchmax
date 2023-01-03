@@ -1,33 +1,33 @@
-Package: Patchmax
+Package: patchmax
 Type: Package
 Title: Patchmax
-Version: 0.1.1
-Author: Pedro Belavenutti
-Maintainer: Pedro Belavenutti <inv.florestal@gmail.com>
-Description: Patchmax is a program used to help design and explore
-  spatially explicit landscape treatment scenarios.
-  The Patchmax can be used to prioritize treatment location on
-  small landscapes (project level implementation)
-  to large landscapes (national forest to multi-regional planning efforts).
-  Although the Patchmax was originally designed for fuel treatment planning, 
-  to fill the gap between fire modeling programs and planning systems in the fuel treatment planning process,
-  it can be applied to fiber production, habitat restoration, and for other resource management problems.
-Depends: R (>= 4.0.3),
-    igraph,
-    data.table,
-    sf,
-    spdep,
-    reshape2,
-    doParallel,
-    parallel,
-    pbapply
+Version: 0.2.0
+Authors@R: 
+  c(
+    person(given = "Pedro", 
+      family = "Belavenutti", 
+      role = c("aut"),
+      email = "inv.florestal@gmail.com"),
+    person(given = "Cody",
+      family = "Evers",
+      role = c("aut","cre"),
+      email = "cevers@pdx.edu") 
+  )
+Description: Patchmax is a program used to help design and explore spatially explicit landscape treatment scenarios. Patchmax can be used to prioritize treatment location on small landscapes (project level implementation) to large landscapes (national forest to multi-regional planning efforts). Although Patchmax was originally designed for fuel treatment planning, to fill the gap between fire modeling programs and planning systems in the fuel treatment planning process, it can be applied to fiber production, habitat restoration, and for other resource management problems.
+Depends: R (>= 4.0.3)
+Imports:
+  R6,
+  cppRouting,
+  dplyr,
+  ggplot2,
+  sf,
+  furrr,
+  future,
+  igraph,
+  assertive,
+  proxy
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.2.1
-Imports: 
-    igraph,
-    data.table,
-    sf,
-    doParallel,
-    parallel
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
