@@ -46,16 +46,20 @@ simulate_projects <- function(
   geom$Id = St_id
   geom$Area = St_area
   geom$Objective = St_objective
-  geom$Constraint = P_constraint
 
   pm <- patchmax$new(geom, 'Id', 'Objective', 'Area', P_size)
   pm$params <- list(
     area_min = P_size - (P_size * P_size_slack),
     sdw = SDW,
-    threshold = St_threshold,
-    constraint_field = 'Constraint', 
-    constraint_max = P_constraint_max_value,
-    constraint_min = P_constraint_min_value)
+    threshold = St_threshold)
+  
+  if(!is.null(P_constraint)){
+    geom$Constraint = P_constraint
+    pm$params <- list(
+      constraint_field = 'Constraint',
+      constraint_max = P_constraint_max_value,
+      constraint_min = P_constraint_min_value)
+  }
   
   for(i in 1:P_number){
     pm$search(sample_frac = sample_frac, show_progress = T)$build()$record() 
