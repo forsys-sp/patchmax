@@ -44,7 +44,7 @@ net_func <- function(geom, id_field, method = 'queen') {
     setNames(c('from','to'))
   
   # calculate pairwise distances among dyads
-  edge_attr(net) <- list(dist = dist(
+  edge_attr(net) <- list(dist = proxy::dist(
     x = xy[match(el$from, xy$name),c('X','Y')], 
     y = xy[match(el$to, xy$name),c('X','Y')], 
     pairwise = T))
@@ -203,19 +203,19 @@ build_func <- function(
 #' @param sample_frac numeric. Fraction of stands to evaluate
 #' @param spatial_grid logical. Sample at regular spatial intervals?
 
-sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
+sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE){
   
   # sample fraction of total nodes
   if(sample_frac == 1){
-    nodes = geom$stand_id
+    nodes = pull(geom, id_field)
   } else if(sample_frac > 0 & sample_frac < 1){
     sample_n = round(nrow(geom) * sample_frac)
     # sample using regular spatial grid or as a simple random sample
     if(spatial_grid){
       pt_grd = sf::st_sample(geom, size = sample_n, type = 'regular')
-      nodes <- sf::st_join(st_as_sf(pt_grd), geom)$stand_id
+      nodes <- sf::st_join(st_as_sf(pt_grd), geom) %>% pull(id_field)
     } else {
-      nodes = geom$stand_id[sort(sample(1:nrow(geom), sample_n))]
+      nodes = geom[sort(sample(1:nrow(geom), sample_n)),] %>% pull(id_field)
     }
   }
   return(nodes)
@@ -227,16 +227,16 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
 #'
 #' @param net igraph graph object
 #' @param cpp_graph cpp graph object
-#' @param nodes 
+#' @param nodes which nodes to evaluate as potential patches
 #' @param objective_field name of field containing objective values
-#' @param a_min 
-#' @param c_max 
-#' @param c_min 
-#' @param t_limit 
-#' @param return_all 
-#' @param show_progress 
-#' @param print_errors 
-#' @param a_max patch size
+#' @param a_max maxmimum patch size
+#' @param a_min minimum patch size (only applicable if constraint is present)
+#' @param c_max maximum constraint value
+#' @param c_min minimum constraint value
+#' @param t_limit maximum portion (0-1) of patch area excluded by threshold
+#' @param return_all logical Return search values for all nodes evaluated
+#' @param show_progress logical Show progress bar 
+#' @param print_errors logical Print reason for invalid search (for debugging)
 #'
 #' @details Calculates potential patches for all or fraction of landscape stands in order to identify the initial seed that leads to the highest total objective score.
 
@@ -269,7 +269,7 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
           stop(paste0('Constaint(s) not met @', i))
         if(t_sum <= (1 - t_limit))
           stop(paste0('Threshold limit exceeded @', i))
-        proj_obj = sum(patch$objective, na.rm=T)
+        proj_obj = last(patch$objective_cs)
         return(proj_obj)
       }, warning = function(w){}, 
       error = function(e){
@@ -278,11 +278,12 @@ sample_frac <- function(geom, sample_frac, spatial_grid = TRUE){
         })
     }, .progress=show_progress, .options = furrr_options(seed = NULL))
 
+    names(search_out) <- nodes
+    
     if(sum(!is.na(search_out)) == 0){
       stop('No patches possible')
     }
     
-    names(search_out) <- nodes
     if(return_all){
       return(search_out)
     } else {
