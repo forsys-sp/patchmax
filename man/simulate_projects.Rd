@@ -15,6 +15,8 @@ simulate_projects(
   P_number = 1,
   St_threshold = NULL,
   SDW = NULL,
+  EPW = NULL,
+  exclusion_limit = 0.5,
   P_constraint = NULL,
   P_constraint_max_value = Inf,
   P_constraint_min_value = -Inf,
@@ -30,32 +32,33 @@ simulate_projects(
 
 \item{St_objective}{numeric vector. Stands objective values}
 
-\item{St_seed}{numeric vector of stands IDs seeds.}
+\item{St_seed}{numeric vector. Stands IDs seeds to search (n)}
 
 \item{P_size}{numeric. Project size}
 
-\item{P_size_slack}{numeric fraction 0-1. Minimum size defined as percent
-less than project size (only used when constraint is provided)}
+\item{P_size_slack}{numeric 0-1. Minimum project size defined as percent less than project size}
 
-\item{P_number}{number integer. Number of patches to simulate}
+\item{P_number}{integer. Number of patches to simulate}
 
-\item{St_threshold}{character threshold statement (e.g., 'field > 0.5' or 'variable == 1')}
+\item{St_threshold}{character. Boolean statement describing whether stand is available for treatment (e.g., 'field > 0.5' or 'variable == 1')}
 
-\item{SDW}{numeric fraction 0-1. Stand distance weight parameter. Default is 0.5}
+\item{SDW}{numeric 0-1. Objective weight parameter. Default is 0.5. Stands with higher objective values are preferentially sought out if greater than 0.}
 
-\item{P_constraint}{numeric vector. Stands values for the project
-constraint.Coupled with P_constraint_max_value and P_constraint_min_value.
-If NULL, then project constraint is not applied.}
+\item{EPW}{numeric 0-1. Exclusion weight parameter. Default is 0.5. Degee to which excluded stands are avoided when building patches. No penaility is applied at 0.}
 
-\item{P_constraint_max_value}{numeric. Project constraint upper value. Default is -Inf}
+\item{exclusion_limit}{numeric 0-1. Maximum percent of patch area that can be excluded.}
 
-\item{P_constraint_min_value}{numeric. Project constraint lower value. Default is Inf}
+\item{P_constraint}{numeric vector. Stands values for the project constraint. If NULL, then  no secondary project constraint is not applied.}
 
-\item{sample_frac}{}
+\item{P_constraint_max_value}{numeric. Project constraint upper value. Default is Inf}
+
+\item{P_constraint_min_value}{numeric. Project constraint lower value. Default is -Inf}
+
+\item{sample_frac}{numeric 0-1. Portion of stands to search}
 }
 \value{
 list with first element describing patch-level stats and the second
-element secribing stand-level stats.
+element describing stand-level stats.
 }
 \description{
 Simulate landscape projects (wrapper)
