@@ -679,7 +679,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
-    #' @field epw Get/set exclusion penality weight between -1 and 1. Default 0. At 0, patches neither privilege or penalize excluded ares. Values closer to 1 enact a greater cost on projects spanning areas excluded by the project stand threshold. Values less than 0 readily search out excluded areas.
+    #' @field epw Get/set exclusion penalty weight between 0 and 1. Default 0.5. Values closer to 1 enact a greater cost on projects spanning areas excluded by the project stand threshold.
     epw = function(value){
       if(missing(value)){
         private$..param_epw
@@ -690,7 +690,7 @@ patchmax <- R6::R6Class(
         private$..param_epw <- value
       }
     },
-    #' @field sdw Get/set spatial distance weight between -1 and 1. Default 0. Patches are highly constrained by distance at -1 and unconstrained by distance at 1. 
+    #' @field sdw Get/set spatial distance weight between 0 and 1. Default 0.5. At 0, patches are highly constrained by distance, resulting in compact shapes. At 1, patches are less unconstrained by distance and seek out areas with higher objectives. 
     sdw = function(value){
       if(missing(value)){
         private$..param_sdw
