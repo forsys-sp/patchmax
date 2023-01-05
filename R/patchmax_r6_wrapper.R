@@ -32,7 +32,7 @@ simulate_projects <- function(
     St_objective, # REQ
     St_seed = NULL, # DELETE?
     P_size, # REQ
-    P_size_slack = 0.05,
+    P_size_slack = 1, # equivalent to -Inf
     P_number = 1, # REQ  
     St_threshold = NULL, 
     SDW = NULL,
@@ -60,6 +60,7 @@ simulate_projects <- function(
   pm$params <- list(
     area_min = P_size - (P_size * P_size_slack),
     sdw = SDW,
+    epw = EPW,
     threshold = St_threshold,
     exclusion_limit = exclusion_limit)
   
