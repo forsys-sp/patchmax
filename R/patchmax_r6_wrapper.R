@@ -6,7 +6,7 @@
 #' @param St_objective numeric vector. Stands objective values
 #' @param St_seed numeric vector. Stands IDs seeds to search (n)
 #' @param P_size numeric. Project size
-#' @param P_size_slack numeric 0-1. Minimum project size defined as percent less than project size
+#' @param P_size_min numeric. Minimum project size (when `P_constraint` is specified).
 #' @param P_number integer. Number of patches to simulate
 #' @param St_threshold character. Boolean statement describing whether stand is available for treatment (e.g., 'field > 0.5' or 'variable == 1')
 #' @param SDW numeric 0-1. Objective weight parameter. Default is 0.5. Stands with higher objective values are preferentially sought out if greater than 0.
@@ -30,9 +30,9 @@ simulate_projects <- function(
     St_id, # REQ
     St_area, # REQ
     St_objective, # REQ
-    St_seed = NULL, # DELETE?
+    St_seed = NULL, # TODO To add in order to maintain compatibility with VP
     P_size, # REQ
-    P_size_slack = 1, # equivalent to -Inf
+    P_size_min = -Inf,
     P_number = 1, # REQ  
     St_threshold = NULL, 
     SDW = NULL,
@@ -58,7 +58,7 @@ simulate_projects <- function(
   
   # define secondary parameters
   pm$params <- list(
-    area_min = P_size - (P_size * P_size_slack),
+    area_min = P_size_min,
     sdw = SDW,
     epw = EPW,
     threshold = St_threshold,
