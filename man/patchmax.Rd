@@ -57,9 +57,9 @@ pm$plot()
 
 \item{\code{area_min}}{Get/set min value for area constraint}
 
-\item{\code{epw}}{Get/set exclusion penality weight between -1 and 1. Default 0. At 0, patches neither privilege or penalize excluded ares. Values closer to 1 enact a greater cost on projects spanning areas excluded by the project stand threshold. Values less than 0 readily search out excluded areas.}
+\item{\code{epw}}{Get/set exclusion penalty weight between 0 and 1. Default 0.5. Values closer to 1 enact a greater cost on projects spanning areas excluded by the project stand threshold.}
 
-\item{\code{sdw}}{Get/set spatial distance weight between -1 and 1. Default 0. Patches are highly constrained by distance at -1 and unconstrained by distance at 1.}
+\item{\code{sdw}}{Get/set spatial distance weight between 0 and 1. Default 0.5. At 0, patches are highly constrained by distance, resulting in compact shapes. At 1, patches are less unconstrained by distance and seek out areas with higher objectives.}
 
 \item{\code{params}}{Get/set list of all patch parameters. Argument is a named list if setting multiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).}
 }

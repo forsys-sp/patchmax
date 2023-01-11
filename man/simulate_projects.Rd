@@ -11,7 +11,7 @@ simulate_projects(
   St_objective,
   St_seed = NULL,
   P_size,
-  P_size_slack = 0.05,
+  P_size_min = -Inf,
   P_number = 1,
   St_threshold = NULL,
   SDW = NULL,
@@ -36,7 +36,7 @@ simulate_projects(
 
 \item{P_size}{numeric. Project size}
 
-\item{P_size_slack}{numeric 0-1. Minimum project size defined as percent less than project size}
+\item{P_size_min}{numeric. Minimum project size (when \code{P_constraint} is specified).}
 
 \item{P_number}{integer. Number of patches to simulate}
 
