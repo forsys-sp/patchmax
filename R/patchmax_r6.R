@@ -1,7 +1,7 @@
 #' @title Patchmax Class
 #'
 #' @description Patchmax patch selection object. Use params active binding to
-#' view class parameters or set mutiple parameters at once (using a named list).
+#' view class parameters or set multiple parameters at once (using a named list).
 #' 
 #' @examples 
 #' geom <- patchmax::test_forest
@@ -35,7 +35,7 @@ patchmax <- R6::R6Class(
     
     # ..........................................................................
     #' @description Initialize new patchmax object for building patches
-    #' @param geom sf Dataframe like sf object with geomerty
+    #' @param geom sf Dataframe like sf object with geometry
     #' @param id_field character Field name containing unique IDs
     #' @param objective_field character Field name containing objective values
     #' @param area_field character Field name containing area
@@ -64,7 +64,7 @@ patchmax <- R6::R6Class(
       # build adjacency network
       private$..net <- net_func(geom = private$..geom, id_field = id_field)
       
-      # add addition fields to adjacency network
+      # add additional fields to adjacency network
       a <- vertex_attr(private$..net) %>% data.frame()
       b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
       vertex_attr(private$..net) <- left_join(a, b, by='name')
@@ -342,7 +342,7 @@ patchmax <- R6::R6Class(
     #' @description 
     #' Summarize recorded patches
     #' @param group_vars character vector Field names to group by
-    #' @param sum_vars characcter vector Field naems to summarize
+    #' @param sum_vars character vector Field names to summarize
     summarize = function(group_vars = NULL, sum_vars = NULL){
       
       stands <- private$..geom %>% 
@@ -690,7 +690,7 @@ patchmax <- R6::R6Class(
         private$..param_epw <- value
       }
     },
-    #' @field sdw Get/set spatial distance weight between 0 and 1. Default 0.5. At 0, patches are highly constrained by distance, resulting in compact shapes. At 1, patches are less unconstrained by distance and seek out areas with higher objectives. 
+    #' @field sdw Get/set spatial distance weight between 0 and 1. Default 0.5. At 0, patches are highly constrained by distance, resulting in compact shapes. At 1, patches are less constrained by distance and seek out areas with higher objectives. 
     sdw = function(value){
       if(missing(value)){
         private$..param_sdw
