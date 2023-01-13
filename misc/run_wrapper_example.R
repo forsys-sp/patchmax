@@ -6,7 +6,7 @@ stands_available = patchmax::test_forest |> mutate(weightedPriority = p4)
 stand_id_field = 'id'
 stand_area_field = 'ha'
 patchmax_proj_size = 1000
-patchmax_proj_size_slack = 0.1
+patchmax_proj_size_min = 500
 patchmax_proj_number = 3
 stand_threshold = "p3 >= 0.5"
 patchmax_SDW = 0.5
@@ -23,7 +23,7 @@ patchmax_out <- patchmax::simulate_projects(
   St_objective = stands_available |> dplyr::pull(weightedPriority), 
   # St_seed = patchmax_st_seed,
   P_size = patchmax_proj_size, 
-  P_size_slack  = patchmax_proj_size_slack, 
+  P_size_min  = patchmax_proj_size_min, 
   P_number = patchmax_proj_number,
   St_threshold = stand_threshold,
   SDW = patchmax_SDW,

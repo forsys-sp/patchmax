@@ -10,7 +10,7 @@
 #' @param P_number integer. Number of patches to simulate
 #' @param St_threshold character. Boolean statement describing whether stand is available for treatment (e.g., 'field > 0.5' or 'variable == 1')
 #' @param SDW numeric 0-1. Objective weight parameter. Default is 0.5. Stands with higher objective values are preferentially sought out if greater than 0.
-#' @param EPW numeric 0-1. Exclusion weight parameter. Default is 0.5. Degee to which excluded stands are avoided when building patches. No penaility is applied at 0.
+#' @param EPW numeric 0-1. Exclusion weight parameter. Default is 0.5. Degree to which excluded stands are avoided when building patches. No penaility is applied at 0.
 #' @param exclusion_limit numeric 0-1. Maximum percent of patch area that can be excluded.
 #' @param P_constraint numeric vector. Stands values for the project constraint. If NULL, then  no secondary project constraint is not applied.
 #' @param P_constraint_max_value numeric. Project constraint upper value. Default is Inf

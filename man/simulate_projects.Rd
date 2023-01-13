@@ -44,7 +44,7 @@ simulate_projects(
 
 \item{SDW}{numeric 0-1. Objective weight parameter. Default is 0.5. Stands with higher objective values are preferentially sought out if greater than 0.}
 
-\item{EPW}{numeric 0-1. Exclusion weight parameter. Default is 0.5. Degee to which excluded stands are avoided when building patches. No penaility is applied at 0.}
+\item{EPW}{numeric 0-1. Exclusion weight parameter. Default is 0.5. Degree to which excluded stands are avoided when building patches. No penaility is applied at 0.}
 
 \item{exclusion_limit}{numeric 0-1. Maximum percent of patch area that can be excluded.}
 

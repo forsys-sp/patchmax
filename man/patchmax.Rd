@@ -5,7 +5,7 @@
 \title{Patchmax Class}
 \description{
 Patchmax patch selection object. Use params active binding to
-view class parameters or set mutiple parameters at once (using a named list).
+view class parameters or set multiple parameters at once (using a named list).
 }
 \examples{
 geom <- patchmax::test_forest
@@ -59,7 +59,7 @@ pm$plot()
 
 \item{\code{epw}}{Get/set exclusion penalty weight between 0 and 1. Default 0.5. Values closer to 1 enact a greater cost on projects spanning areas excluded by the project stand threshold.}
 
-\item{\code{sdw}}{Get/set spatial distance weight between 0 and 1. Default 0.5. At 0, patches are highly constrained by distance, resulting in compact shapes. At 1, patches are less unconstrained by distance and seek out areas with higher objectives.}
+\item{\code{sdw}}{Get/set spatial distance weight between 0 and 1. Default 0.5. At 0, patches are highly constrained by distance, resulting in compact shapes. At 1, patches are less constrained by distance and seek out areas with higher objectives.}
 
 \item{\code{params}}{Get/set list of all patch parameters. Argument is a named list if setting multiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).}
 }
@@ -98,7 +98,7 @@ Initialize new patchmax object for building patches
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{geom}}{sf Dataframe like sf object with geomerty}
+\item{\code{geom}}{sf Dataframe like sf object with geometry}
 
 \item{\code{id_field}}{character Field name containing unique IDs}
 
@@ -245,7 +245,7 @@ Summarize recorded patches
 \describe{
 \item{\code{group_vars}}{character vector Field names to group by}
 
-\item{\code{sum_vars}}{characcter vector Field naems to summarize}
+\item{\code{sum_vars}}{character vector Field names to summarize}
 }
 \if{html}{\out{</div>}}
 }
