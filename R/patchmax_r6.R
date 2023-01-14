@@ -64,17 +64,13 @@ patchmax <- R6::R6Class(
       # build adjacency network
       private$..net <- net_func(geom = private$..geom, id_field = id_field)
       
-      # add additional fields to adjacency network
+      # add fields to adjacency network
       a <- vertex_attr(private$..net) %>% data.frame()
       b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
       vertex_attr(private$..net) <- left_join(a, b, by='name')
       
       # save optional parameters
       self$params <- list(...)
-
-      # vertex_attr(private$..net, name = '..patch_id') = 0
-      # vertex_attr(private$..net, name = '..include') = 1
-      
       private$..refresh_net_attr()
     },
     
@@ -133,13 +129,18 @@ patchmax <- R6::R6Class(
     # ..........................................................................
     #' @description Search patch origin with highest objective
     #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
+    #' @param set_starts character vector Specified set of stands IDs to search
     #' @param return_all logical Return search results
     #' @param show_progress logical Show search progress bar
     #' @param search_plot logical Map search results
     #' @param print_errors logical Print search errors to console
-    #'
+    #' 
+    #' @details By default, `set_starts` is NULL. If specified, `sample_frac` is
+    #'   overwritten and only the specified stand IDs are used to in the search.
+    #'   
     search = function(
-      sample_frac = 0.1, 
+      sample_frac = 0.1,
+      set_starts = NULL,
       search_plot = FALSE, 
       return_all = FALSE, 
       show_progress = FALSE,
@@ -153,7 +154,14 @@ patchmax <- R6::R6Class(
         return_all = TRUE
       }
       
-      nodes <- sample_frac(private$..geom, sample_frac, private$..param_id_field, TRUE)
+      if(is.null(set_starts)){
+        nodes <- sample_frac(
+          private$..geom, sample_frac, 
+          private$..param_id_field, 
+          TRUE)
+      } else {
+        nodes <- set_starts
+      }
       
       message('Searching...')
       
@@ -177,15 +185,21 @@ patchmax <- R6::R6Class(
       
       # >>>>> Debugging: plot search results  <<<<<<<<
       if(search_plot){
-        # make search plot
-        search_dat <- data.frame(names(search_out), search_out = as.numeric(search_out)) %>%
+
+        search_dat <- data.frame(
+          names(search_out), 
+          search_out = as.numeric(search_out)
+          ) %>%
           rename(!!private$..param_id_field := 1)
+        
         pdat <- dplyr::inner_join(
           x = private$..geom, 
           y = search_dat, 
           by=private$..param_id_field)
+        
         # identify best origin
         origin <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
+        
         # build best patch
         self$build(best_out)
         patch_geom <- self$geom %>% 
@@ -252,7 +266,9 @@ patchmax <- R6::R6Class(
       patches <- patches %>% group_by(..patch_id) %>% summarize()
       
       # add include field for plotting
-      geom$..include = vertex_attr(net, '..include', match(pull(geom, private$..param_id_field), V(net)$name))
+      geom$..include = vertex_attr(
+        net, '..include', 
+        match(pull(geom, private$..param_id_field), V(net)$name))
       geom$..include = factor(geom$..include, c(0,1))
       
       plot = ggplot() + 
@@ -293,7 +309,7 @@ patchmax <- R6::R6Class(
     #' Record selected patch
     #' @param patch_id integer/character Patch name. If null, add one to highest
     #' @param enforce_constraint logical Apply secondary constraint
-    
+    #'
     record = function(patch_id = NULL, enforce_constraint = TRUE){
       if(is.null(private$..pending_patch_stands))
         stop('No patch. Run search or select first.')
@@ -339,10 +355,12 @@ patchmax <- R6::R6Class(
       return(invisible(self))
     },
     
+    # ..........................................................................
     #' @description 
     #' Summarize recorded patches
     #' @param group_vars character vector Field names to group by
     #' @param sum_vars character vector Field names to summarize
+    #'
     summarize = function(group_vars = NULL, sum_vars = NULL){
       
       stands <- private$..geom %>% 
@@ -369,10 +387,12 @@ patchmax <- R6::R6Class(
       return(sum_out)
     },
     
-    #' @description 
-    #' Reset recorded patches
+    # ..........................................................................
+    #' @description Reset recorded patches
     #' @param patch_id optional. Patch ID to delete
-    #' @details If blank, delete all patches. If negative, delete that number of the most recent patches. Else, delete patch ID equal argument.
+    #' @details If blank, delete all patches. If negative, delete that number of
+    #'   the most recent patches. Else, delete patch ID equal argument.
+    #'
     reset = function(patch_id = NULL){
       if(is.null(patch_id)){
         private$..geom$..patch_id = 0
@@ -398,7 +418,8 @@ patchmax <- R6::R6Class(
       private$..pending_patch_stats = NULL
       private$..pending_origin = NULL
       return(invisible(self))
-    }
+    },
+    
   ),
   
   # //////////////////////////////////////////////////////////////////////////
@@ -413,7 +434,7 @@ patchmax <- R6::R6Class(
     ..param_id_field = NULL,
     ..param_objective_field = NULL,
     ..param_area_field = NULL,
-    ..param_area_max = NULL,
+    ..param_area_max = Inf,
     ..param_area_min = -Inf,
     ..param_threshold = NULL,
     ..param_threshold_area_adjust = 0,
@@ -431,7 +452,6 @@ patchmax <- R6::R6Class(
     ..record_patch_stats = NULL,
 
     #' Update edgelist distances
-    
     ..update_adj = function(){
       dst <- dist_func(
         net = delete_vertices(private$..net, V(private$..net)$..patch_id > 0),
@@ -442,12 +462,8 @@ patchmax <- R6::R6Class(
     },
     
     #' Update network adjacency network object
-
     ..update_net = function(){
-      
       net <- private$..net
-
-      # remove stands assigned a patch id
       net <- delete_vertices(net, V(net)$..patch_id > 0)
       return(net)
     },
@@ -502,6 +518,7 @@ patchmax <- R6::R6Class(
     net = function(){
       private$..net
     },
+    
     #' @field geom Get sf geometry object. Read only
     geom = function(value){
       if(missing(value)){
@@ -514,8 +531,7 @@ patchmax <- R6::R6Class(
         
         # set key fields in geometry object
         value <- value %>% 
-          mutate(!!private$..param_id_field := 
-                   as.character(get(private$..param_id_field))) %>%
+          mutate(!!private$..param_id_field := as.character(get(private$..param_id_field))) %>%
           mutate(..patch_id = 0) %>%
           mutate(..include = 1) %>%
           mutate(..objective = 0) %>%
@@ -529,27 +545,32 @@ patchmax <- R6::R6Class(
         private$..geom <- value
       }
     },
+    
     #' @field best Get pending stand id representing best patch origin. Read only
     best = function(){
       private$..pending_origin
     },
+    
     #' @field pending_stands Get stands in pending patch. Read only
     pending_stands = function(){
       private$..pending_patch_stands
     },
+    
     #' @field pending_patch Get pending patch stats. Read only
     pending_patch = function(){
       private$..pending_patch_stats
     },
+    
     #' @field patch_stands Get list of recorded stands
     patch_stands = function(){
       private$..record_patch_stands
     },
-    #' @field patch_stats
-    #'  Get list of recorded patches
+    
+    #' @field patch_stats Get list of recorded patches
     patch_stats = function(){
       private$..record_patch_stats
     },
+    
     #' @field id_field Get/set stand ID field
     id_field = function(value){
       if(missing(value)){
@@ -561,6 +582,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field objective_field Get/set objective field
     objective_field = function(value){
       if(missing(value)){
@@ -572,6 +594,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field area_field Get/set area field
     area_field = function(value){
       if(missing(value)){
@@ -583,6 +606,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field threshold Get/set threshold boolean statement
     threshold = function(value){
       if(missing(value)){
@@ -592,6 +616,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field exclusion_limit Get/set threshold limit 
     exclusion_limit = function(value){
       if(missing(value)){
@@ -601,6 +626,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field threshold_area_adjust Get/set fraction of area to count within excluded stands
     threshold_area_adjust = function(value){
       if(missing(value)){
@@ -610,6 +636,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field threshold_objective_adjust Get/set fraction of objective to count within excluded stands
     threshold_objective_adjust = function(value){
       if(missing(value)){
@@ -622,6 +649,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field constraint_field Get/set secondary constraint field. Optional
     constraint_field = function(value){
       if(missing(value)){
@@ -633,6 +661,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field constraint_max Get/set max value for secondary constraint (e.g., max budget)
     constraint_max = function(value){
       if(missing(value)){
@@ -644,6 +673,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field constraint_min Get/set min value for secondary constraint
     constraint_min = function(value){
       if(missing(value)){
@@ -655,6 +685,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field area_max Get/set max value for area constraint
     area_max = function(value){
       if(missing(value)){
@@ -667,6 +698,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field area_min Get/set min value for area constraint
     area_min = function(value){
       if(missing(value)){
@@ -679,6 +711,7 @@ patchmax <- R6::R6Class(
         private$..refresh_net_attr()
       }
     },
+    
     #' @field epw Get/set exclusion penalty weight between 0 and 1. Default 0.5. Values closer to 1 enact a greater cost on projects spanning areas excluded by the project stand threshold.
     epw = function(value){
       if(missing(value)){
@@ -690,6 +723,7 @@ patchmax <- R6::R6Class(
         private$..param_epw <- value
       }
     },
+    
     #' @field sdw Get/set spatial distance weight between 0 and 1. Default 0.5. At 0, patches are highly constrained by distance, resulting in compact shapes. At 1, patches are less constrained by distance and seek out areas with higher objectives. 
     sdw = function(value){
       if(missing(value)){
@@ -701,6 +735,7 @@ patchmax <- R6::R6Class(
         private$..param_sdw <- value
       }
     },
+    
     #' @field params Get/set list of all patch parameters. Argument is a named list if setting multiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).
     params = function(value){
       if(missing(value)){
@@ -713,11 +748,9 @@ patchmax <- R6::R6Class(
         assertive::assert_is_list(value)
         for(i in seq_along(value)){
           tryCatch({
-            # nm_p = paste0('..param_',names(value)[i])
             nm = names(value)[i]
             assign(nm, value = value[i][[1]], envir = self)
           }, error = function(e){
-            # message(paste0('Parameter ', i, ' ', names(value)[i], ' not found'))
             print(e)
           })
         }

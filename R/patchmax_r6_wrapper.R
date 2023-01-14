@@ -35,8 +35,8 @@ simulate_projects <- function(
     P_size_min = -Inf,
     P_number = 1, # REQ  
     St_threshold = NULL, 
-    SDW = NULL,
-    EPW = NULL,
+    SDW = .5,
+    EPW = .5,
     exclusion_limit = 0.5,
     P_constraint = NULL, 
     P_constraint_max_value = Inf,
@@ -52,7 +52,8 @@ simulate_projects <- function(
   geom$Id = St_id
   geom$Area = St_area
   geom$Objective = St_objective
-
+  geom$Constraint = P_constraint
+  
   # create new patchmax instance
   pm <- patchmax$new(geom, 'Id', 'Objective', 'Area', P_size)
   
@@ -65,7 +66,6 @@ simulate_projects <- function(
     exclusion_limit = exclusion_limit)
   
   if(!is.null(P_constraint)){
-    geom$Constraint = P_constraint
     pm$params <- list(
       constraint_field = 'Constraint',
       constraint_max = P_constraint_max_value,

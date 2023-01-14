@@ -14,6 +14,7 @@ constraint_field = 'p1'
 proj_target_value = Inf
 proj_target_min_value = -Inf
 
+
 # run patchmax
 plan(multisession(workers = 8))
 patchmax_out <- patchmax::simulate_projects(
