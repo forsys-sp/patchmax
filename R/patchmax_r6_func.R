@@ -180,15 +180,19 @@ build_func <- function(
   pnodes <- dist_df[1:which.min(a_d),]
   
   # evaluate secondary constraint if present
-  if(!is.null(vertex_attr(net, '..constraint'))){
+  if (!is.null(vertex_attr(net, '..constraint'))){
     c_v <- vertex_attr(net, '..constraint', match(pnodes$node, V(net)$name))
     c_cs <- cumsum(c_v * pnodes$include)
     pnodes$constraint <- c_v
     pnodes$constraint_cs <- c_cs
     pnodes$constraint_met <- (c_cs > c_min) & (c_cs < c_max)
     # remove stands that fail constraint 
-    if(c_enforce){
-      pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
+    if (c_enforce){
+      if (sum(pnodes$constraint_met) > 0) {
+        pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
+      } else {
+        pnodes <- NULL
+      }
     }
   }
   

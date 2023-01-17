@@ -419,7 +419,6 @@ patchmax <- R6::R6Class(
       private$..pending_origin = NULL
       return(invisible(self))
     }
-    
   ),
   
   # //////////////////////////////////////////////////////////////////////////
