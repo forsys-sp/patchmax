@@ -142,6 +142,7 @@ Search patch origin with highest objective
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{patchmax$search(
   sample_frac = 0.1,
+  set_starts = NULL,
   search_plot = FALSE,
   return_all = FALSE,
   show_progress = FALSE,
@@ -154,6 +155,8 @@ Search patch origin with highest objective
 \describe{
 \item{\code{sample_frac}}{numeric Fraction of stands to evaluate (0-1)}
 
+\item{\code{set_starts}}{character vector Specified set of stands IDs to search}
+
 \item{\code{search_plot}}{logical Map search results}
 
 \item{\code{return_all}}{logical Return search results}
@@ -164,6 +167,11 @@ Search patch origin with highest objective
 }
 \if{html}{\out{</div>}}
 }
+\subsection{Details}{
+By default, \code{set_starts} is NULL. If specified, \code{sample_frac} is
+overwritten and only the specified stand IDs are used to in the search.
+}
+
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-patchmax-simulate"></a>}}
@@ -267,7 +275,9 @@ Reset recorded patches
 \if{html}{\out{</div>}}
 }
 \subsection{Details}{
-If blank, delete all patches. If negative, delete that number of the most recent patches. Else, delete patch ID equal argument.
+If blank, delete all patches. If negative, delete that number of
+the most recent patches. Else, delete patch ID equal argument.
+
 Update edgelist distances
 Update network adjacency network object
 }
