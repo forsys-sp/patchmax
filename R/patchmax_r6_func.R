@@ -191,7 +191,7 @@ build_func <- function(
       if (sum(pnodes$constraint_met) > 0) {
         pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
       } else {
-        pnodes <- NULL
+        pnodes <- NA
       }
     }
   }
