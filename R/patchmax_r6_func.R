@@ -6,6 +6,8 @@
 #' @param id_field vector of sf feature ideas (i.e., the stand id)
 #' @param method adjacency method to use: queen, rook, buffer
 #' @importFrom proxy dist
+#' @importFrom igraph as_edgelist graph_from_data_frame
+#' @importFrom sf st_buffer st_overlaps st_centroid st_coordinates
 #' @return adjacency network saved as an igraph network object
 
 net_func <- function(geom, id_field, method = 'queen') {
@@ -39,7 +41,7 @@ net_func <- function(geom, id_field, method = 'queen') {
   V(net)$Y <- xy$Y[match(V(net)$name, xy$name)]
   
   # extract edge list 
-  el <- igraph::as_edgelist(net, names=T) %>% 
+  el <- as_edgelist(net, names=T) %>% 
     as.data.frame() %>% 
     setNames(c('from','to'))
   
@@ -61,13 +63,12 @@ net_func <- function(geom, id_field, method = 'queen') {
 #' @param area_adjust value 0-1 represent area 'cost' of excluded stands
 #' @param objective_adjust value 0-1, percent contribution of excluded stands
 #'   to patch score
-#'
 #' @details By default, excluded stands don't count towards the total project
 #'   objective or the total project size. Setting the area and objective adjust
 #'   to a fraction greater than 0 changes this behavior, allowing for a fraction
 #'   of the both values for excluded stands to be counted.
-#'
 #' @return igraph adjacency network
+#' @importFrom igraph V
 
 threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
   V(net)$..objective[!include] <- V(net)$..objective[!include] * objective_adjust
@@ -87,12 +88,13 @@ threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
 #' @param epw numeric between 0 and 1 distance multiplier for traversing excluded stands
 #' @details `epw` and `sdw` have exponential effects. At 1, distance values are 10x greater than at 0. Setting either value to 0 leaves distances unmodified.
 #' @importFrom cppRouting makegraph
+#' @importFrom igraph as_edgelist
 #' @return cpp graph object
 
 dist_func <- function(net, objective_field, sdw=0, epw=0){
   
   # extract adjacency network edge list
-  el <- igraph::as_edgelist(net, names=T) %>% 
+  el <- as_edgelist(net, names=T) %>% 
     as.data.frame() %>% 
     setNames(c('from','to'))
   el$dist <- E(net)$dist
@@ -206,8 +208,10 @@ build_func <- function(
 #' @param geom sf. Stand geometry
 #' @param sample_frac numeric. Fraction of stands to evaluate
 #' @param spatial_grid logical. Sample at regular spatial intervals?
+#' 
+#' @importFrom sf st_sample st_join
 
-sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE){
+sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_seed = NULL){
   
   # sample fraction of total nodes
   if(sample_frac == 1){
@@ -216,8 +220,9 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE){
     sample_n = round(nrow(geom) * sample_frac)
     # sample using regular spatial grid or as a simple random sample
     if(spatial_grid){
-      pt_grd = sf::st_sample(geom, size = sample_n, type = 'regular')
-      nodes <- sf::st_join(st_as_sf(pt_grd), geom) %>% pull(id_field)
+      set.seed(rng_seed)
+      pt_grd = st_sample(geom, size = sample_n, type = 'regular')
+      nodes <- st_join(st_as_sf(pt_grd), geom) %>% pull(id_field)
     } else {
       nodes = geom[sort(sample(1:nrow(geom), sample_n)),] %>% pull(id_field)
     }
@@ -243,6 +248,8 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE){
 #' @param print_errors logical Print reason for invalid search (for debugging)
 #'
 #' @details Calculates potential patches for all or fraction of landscape stands in order to identify the initial seed that leads to the highest total objective score.
+#' 
+#' @importFrom furrr future_map_dbl
 
   search_func <- function(
     net, 
@@ -264,7 +271,7 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE){
     }
     
     # calculate objective score for all potential patches
-    search_out <- nodes %>% furrr::future_map_dbl(function(i){
+    search_out <- nodes %>% future_map_dbl(function(i){
       proj_obj <- NA
       tryCatch({
         patch <- build_func(i, cpp_graph, net, a_max, a_min, c_max, c_min)
@@ -308,6 +315,8 @@ range01 <- function(x){
 #' Helper function to calculate rook adjacency in geometry
 #'
 #' @param geom sf-class geometry
+#' 
+#' @importFrom sf st_relate
 
 st_rook = function(geom){
   st_relate(geom, geom, pattern = "F***1****")
@@ -316,6 +325,8 @@ st_rook = function(geom){
 #' Helper function to calculate queen adjacency in geometry
 #'
 #' @param geom sf-class geometry
+#' 
+#' @importFrom sf st_relate
 
 st_queen <- function(geom){
   st_relate(geom, geom, pattern = "F***T****")

@@ -20,7 +20,8 @@ simulate_projects(
   P_constraint = NULL,
   P_constraint_max_value = Inf,
   P_constraint_min_value = -Inf,
-  sample_frac = 0.1
+  sample_frac = 0.1,
+  sample_seed = NULL
 )
 }
 \arguments{

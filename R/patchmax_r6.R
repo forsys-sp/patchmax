@@ -156,9 +156,11 @@ patchmax <- R6::R6Class(
       
       if(is.null(set_starts)){
         nodes <- sample_frac(
-          private$..geom, sample_frac, 
-          private$..param_id_field, 
-          TRUE)
+          geom = private$..geom, 
+          sample_frac = sample_frac, 
+          id_field = private$..param_id_field, 
+          spatial_grid = TRUE,
+          rng_seed = private$..param_seed)
       } else {
         nodes <- set_starts
       }
@@ -444,6 +446,7 @@ patchmax <- R6::R6Class(
     ..param_constraint_min = -Inf,
     ..param_sdw = 0.5,
     ..param_epw = 0.5,
+    ..param_seed = NULL,
     ..pending_patch_stands = NULL,
     ..pending_patch_stats = NULL,
     ..pending_origin = NULL,
@@ -732,6 +735,18 @@ patchmax <- R6::R6Class(
         assertive::assert_is_of_length(value, 1)
         assertive::assert_all_are_in_range(value, -1, 1, F, F)
         private$..param_sdw <- value
+      }
+    },
+    
+    #' @field seed Get/set the seed used in random number generator
+    seed = function(value){
+      if(missing(value)){
+        private$..param_seed
+      } else {
+        if((assertive::is_null(value) | assertive::is_numeric(value)) == FALSE){
+          stop('Seed must be numeric, integer, or NULL')
+        }
+        private$..param_seed <- value
       }
     },
     

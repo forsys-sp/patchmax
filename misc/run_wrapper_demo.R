@@ -1,5 +1,6 @@
 library(patchmax)
 library(dplyr)
+library(furrr)
 
 # define elements to look like those seen within forsys
 stands_available = patchmax::test_forest |> mutate(weightedPriority = p4)
@@ -22,7 +23,6 @@ patchmax_out <- patchmax::simulate_projects(
   St_id = stands_available |> dplyr::pull(!!stand_id_field), 
   St_area = stands_available |> dplyr::pull(!!stand_area_field), 
   St_objective = stands_available |> dplyr::pull(weightedPriority), 
-  # St_seed = patchmax_st_seed,
   P_size = patchmax_proj_size, 
   P_size_min  = patchmax_proj_size_min, 
   P_number = patchmax_proj_number,

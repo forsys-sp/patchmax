@@ -41,7 +41,8 @@ simulate_projects <- function(
     P_constraint = NULL, 
     P_constraint_max_value = Inf,
     P_constraint_min_value = -Inf,
-    sample_frac = 0.1
+    sample_frac = 0.1,
+    sample_seed = NULL
 ){
   
   if(!any(class(geom) == 'sf')){
@@ -63,7 +64,8 @@ simulate_projects <- function(
     sdw = SDW,
     epw = EPW,
     threshold = St_threshold,
-    exclusion_limit = exclusion_limit)
+    exclusion_limit = exclusion_limit,
+    seed = sample_seed)
   
   if(!is.null(P_constraint)){
     pm$params <- list(

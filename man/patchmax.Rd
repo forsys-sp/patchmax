@@ -61,6 +61,8 @@ pm$plot()
 
 \item{\code{sdw}}{Get/set spatial distance weight between 0 and 1. Default 0.5. At 0, patches are highly constrained by distance, resulting in compact shapes. At 1, patches are less constrained by distance and seek out areas with higher objectives.}
 
+\item{\code{seed}}{Get/set the seed used in random number generator}
+
 \item{\code{params}}{Get/set list of all patch parameters. Argument is a named list if setting multiple parameters at once through params active bindings. Ex: patchmax$params = list(constraint_field = 'constraint1', constraint_max = 1000).}
 }
 \if{html}{\out{</div>}}

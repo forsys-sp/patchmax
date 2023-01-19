@@ -4,7 +4,7 @@
 \alias{sample_frac}
 \title{Samples stands on regular spatial grid}
 \usage{
-sample_frac(geom, sample_frac, id_field, spatial_grid = TRUE)
+sample_frac(geom, sample_frac, id_field, spatial_grid = TRUE, rng_seed = NULL)
 }
 \arguments{
 \item{geom}{sf. Stand geometry}
