@@ -56,10 +56,12 @@ simulate_projects <- function(
   geom$Constraint = P_constraint
   
   # create new patchmax instance
-  pm <- patchmax$new(geom, 'Id', 'Objective', 'Area', P_size)
-  
-  # define secondary parameters
-  pm$params <- list(
+  pm <- patchmax$new(
+    geom = geom, 
+    id_field = 'Id',
+    objective_field = 'Objective', 
+    area_field = 'Area', 
+    area_max = P_size, 
     area_min = P_size_min,
     sdw = SDW,
     epw = EPW,
@@ -74,11 +76,13 @@ simulate_projects <- function(
       constraint_min = P_constraint_min_value)
   }
   
+  pm$random_sample(sample_frac = sample_frac)
+  
   # simulate patches
   for(i in 1:P_number){
-    pm$search(sample_frac = sample_frac, show_progress = T)$build()$record() 
+    pm$search(show_progress = T)$build()$record() 
   }
-  
+
   # output patch statistics
   out_a <- pm$patch_stats %>% select(
     Project = patch_id,
