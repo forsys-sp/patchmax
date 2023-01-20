@@ -299,11 +299,6 @@ patchmax <- R6::R6Class(
       stands <- private$..pending_patch_stands %>%
         select(!!private$..param_id_field := node, include, objective, area, constraint)
       
-      stands <- stands %>%
-        mutate(objective = objective * area * include) %>%
-        mutate(area = area * include) %>%
-        mutate(constraint = constraint * include)
-      
       # record data
       patch_stats <- data.frame(patch_id = patch_id, patches)
       patch_stands <- data.frame(patch_id = patch_id, stands)
