@@ -77,6 +77,8 @@ pm$plot()
 \item \href{#method-patchmax-plot}{\code{patchmax$plot()}}
 \item \href{#method-patchmax-record}{\code{patchmax$record()}}
 \item \href{#method-patchmax-summarize}{\code{patchmax$summarize()}}
+\item \href{#method-patchmax-random_sample}{\code{patchmax$random_sample()}}
+\item \href{#method-patchmax-set_sample}{\code{patchmax$set_sample()}}
 \item \href{#method-patchmax-reset}{\code{patchmax$reset()}}
 \item \href{#method-patchmax-clone}{\code{patchmax$clone()}}
 }
@@ -143,8 +145,6 @@ If node is NULL, use stand id found during search
 Search patch origin with highest objective
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{patchmax$search(
-  sample_frac = 0.1,
-  set_starts = NULL,
   search_plot = FALSE,
   return_all = FALSE,
   show_progress = FALSE,
@@ -155,10 +155,6 @@ Search patch origin with highest objective
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{sample_frac}}{numeric Fraction of stands to evaluate (0-1)}
-
-\item{\code{set_starts}}{character vector Specified set of stands IDs to search}
-
 \item{\code{search_plot}}{logical Map search results}
 
 \item{\code{return_all}}{logical Return search results}
@@ -170,7 +166,7 @@ Search patch origin with highest objective
 \if{html}{\out{</div>}}
 }
 \subsection{Details}{
-By default, \code{set_starts} is NULL. If specified, \code{sample_frac} is
+By default, \code{set_search_starts} is NULL. If specified, \code{sample_frac} is
 overwritten and only the specified stand IDs are used to in the search.
 }
 
@@ -181,15 +177,13 @@ overwritten and only the specified stand IDs are used to in the search.
 \subsection{Method \code{simulate()}}{
 Search, build, and record multiple patches in sequence
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{patchmax$simulate(n_projects = 1, sample_frac = 0.1)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$simulate(n_projects = 1)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{n_projects}}{integer. Number of patches to build}
-
-\item{\code{sample_frac}}{numeric. Fraction of stands to evaluate for patches}
 }
 \if{html}{\out{</div>}}
 }
@@ -256,6 +250,40 @@ Summarize recorded patches
 \item{\code{group_vars}}{character vector Field names to group by}
 
 \item{\code{sum_vars}}{character vector Field names to summarize}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-patchmax-random_sample"></a>}}
+\if{latex}{\out{\hypertarget{method-patchmax-random_sample}{}}}
+\subsection{Method \code{random_sample()}}{
+Sample fraction of starts
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$random_sample(sample_frac = 1)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{sample_frac}}{numeric Fraction of stands to evaluate (0-1)}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-patchmax-set_sample"></a>}}
+\if{latex}{\out{\hypertarget{method-patchmax-set_sample}{}}}
+\subsection{Method \code{set_sample()}}{
+Set search seeds manually
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$set_sample(ids)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{ids}}{character vector Specified set of stands IDs to search}
 }
 \if{html}{\out{</div>}}
 }

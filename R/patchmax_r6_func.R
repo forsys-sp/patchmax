@@ -10,7 +10,7 @@
 #' @importFrom sf st_buffer st_overlaps st_centroid st_coordinates
 #' @return adjacency network saved as an igraph network object
 
-net_func <- function(geom, id_field, method = 'queen') {
+create_network <- function(geom, id_field, method = 'queen') {
   
   id = pull(geom, id_field)
   
@@ -39,6 +39,7 @@ net_func <- function(geom, id_field, method = 'queen') {
   
   V(net)$X <- xy$X[match(V(net)$name, xy$name)]
   V(net)$Y <- xy$Y[match(V(net)$name, xy$name)]
+  V(net)$..sample = 1
   
   # extract edge list 
   el <- as_edgelist(net, names=T) %>% 
@@ -71,10 +72,12 @@ net_func <- function(geom, id_field, method = 'queen') {
 #' @importFrom igraph V
 
 threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
+  
   V(net)$..objective[!include] <- V(net)$..objective[!include] * objective_adjust
   V(net)$area[!include] <- V(net)$area[!include] * area_adjust
-  if(!is.null(V(net)$..constraint))
-    V(net)$..constraint[!include] <- V(net)$..constraint[!include] * 0
+  if(!is.null(V(net)$..constraint)){
+    V(net)$..constraint[!include] <- V(net)$..constraint[!include] * 0 
+  }
   return(net)
 }
 
@@ -91,7 +94,7 @@ threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
 #' @importFrom igraph as_edgelist
 #' @return cpp graph object
 
-dist_func <- function(net, objective_field, sdw=0, epw=0){
+adjust_distances <- function(net, objective_field, sdw=0, epw=0){
   
   # extract adjacency network edge list
   el <- as_edgelist(net, names=T) %>% 
@@ -167,7 +170,7 @@ build_func <- function(
   dist_df <- dist_df %>% 
     arrange(dist) %>%
     filter(!is.na(dist)) %>%
-    mutate(threshold_met = include == 1) %>%
+    mutate(threshold_met = (include == 1)) %>%
     mutate(area_cs = cumsum(area * threshold_met)) %>%
     mutate(area_met = (area_cs <= !!a_max ) & (area_cs >= !!a_min)) %>%
     mutate(objective_cs = cumsum(objective * threshold_met))
@@ -271,37 +274,77 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
     }
     
     # calculate objective score for all potential patches
-    search_out <- nodes %>% future_map_dbl(function(i){
+    search_out <- nodes %>% future_map_dbl(function(i) {
+      
       proj_obj <- NA
+      
       tryCatch({
+        
+        # build patch at node i
         patch <- build_func(i, cpp_graph, net, a_max, a_min, c_max, c_min)
+        
+        # calculate thershold exclusion limit
         t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
-        if(!last(patch$area_met) | !last(patch$constraint_met))
+        
+        # error if neither area or secondary constraint are not met
+        if(!last(patch$area_met) | !last(patch$constraint_met)){
           stop(paste0('Constaint(s) not met @', i))
-        if(t_sum <= (1 - t_limit))
+        }
+        
+        # error if exclusion rate greater than exclusion limit
+        if(t_sum <= (1 - t_limit)){
           stop(paste0('Threshold limit exceeded @', i))
+        }
+        
         proj_obj = last(patch$objective_cs)
         return(proj_obj)
-      }, warning = function(w){}, 
+      }, 
       error = function(e){
         if(print_errors) print(e)
         return(NA)
-        })
+      })
     }, .progress=show_progress, .options = furrr_options(seed = NULL))
 
+    # label search output with unit IDs
     names(search_out) <- nodes
     
     if(sum(!is.na(search_out)) == 0){
       stop('No patches possible')
     }
     
-    if(return_all){
-      return(search_out)
-    } else {
-      return(search_out[which.max(search_out)])
+    if(return_all == FALSE){
+      search_out <- search_out[which.max(search_out)]
     }
+    
+    return(search_out)
 }
 
+  
+#' Helper for reporting patch statistics in build function
+#'
+#' @param patch patch data
+#' @param verbose print statistics to screen?
+#'
+#' @return Dataframe with patch statistics
+#'
+calc_patch_stats <- function(patch, verbose = TRUE){
+  
+  stats = data.frame(
+    start = patch$node[1], 
+    area = round(max(patch$area_cs),3),
+    coverage = round(sum(patch$area),3),
+    objective = round(sum(patch$objective * patch$threshold_met),3),
+    constraint = round(max(patch$constraint_cs),3),
+    excluded = 100-round(max(patch$area_cs)/sum(patch$area)*100))
+  
+  if(verbose){
+    message(glue::glue('Patch stats: start {stats$start}, objective {stats$objective}, area {stats$area}, coverage {stats$coverage}, objective/area {stats$objective_area}, constraint {stats$constraint}, excluded {stats$excluded}%'))
+  }
+
+  return(stats)
+}
+  
+  
 #.....................................................................
 
 #' Helper function to normalize vector to between 0 and 1

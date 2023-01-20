@@ -62,7 +62,7 @@ patchmax <- R6::R6Class(
       self$geom <- geom
 
       # build adjacency network
-      private$..net <- net_func(geom = private$..geom, id_field = id_field)
+      private$..net <- create_network(geom = private$..geom, id_field = id_field)
       
       # add fields to adjacency network
       a <- vertex_attr(private$..net) %>% data.frame()
@@ -89,7 +89,7 @@ patchmax <- R6::R6Class(
       
       patch <- build_func(
         start_node = node, 
-        cpp_graph = private$..update_adj(), 
+        cpp_graph = private$..update_edgelist(), 
         net = private$..update_net(),
         a_max = private$..param_area_max,
         a_min = private$..param_area_min,
@@ -98,49 +98,32 @@ patchmax <- R6::R6Class(
       
       # append auxiliary stand data
       aux_data <- vertex_attr(private$..net) %>% 
-        select(
-          node = name, 
-          private$..param_objective_field, 
-          original_area = ..area)
+        select(node = name, 
+               private$..param_objective_field, 
+               original_area = ..area)
       
       patch <- left_join(patch, aux_data, by='node', suffix = c('','.x'))
       
       # save patch stat and stand data
       private$..pending_patch_stands <- patch
+      private$..pending_patch_stats <- calc_patch_stats(patch)
       
       sum(patch$objective * patch$threshold_met * patch$area)
 
-      stats = data.frame(
-        start = patch$node[1], 
-        area = round(max(patch$area_cs),3),
-        coverage = round(sum(patch$area),3),
-        objective_area = round(max(patch$objective_cs),3),
-        objective = round(sum(patch$objective * patch$area * patch$threshold_met),3),
-        constraint = round(max(patch$constraint_cs),3),
-        excluded = 100-round(max(patch$area_cs)/sum(patch$area)*100))
-      
-      private$..pending_patch_stats = stats
-      
-      message(glue::glue('Patch stats: start {stats$start}, objective {stats$objective}, area {stats$area}, coverage {stats$coverage}, objective/area {stats$objective_area}, constraint {stats$constraint}, excluded {stats$excluded}%'))
-      
       return(invisible(self))
     },
     
     # ..........................................................................
     #' @description Search patch origin with highest objective
-    #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
-    #' @param set_starts character vector Specified set of stands IDs to search
     #' @param return_all logical Return search results
     #' @param show_progress logical Show search progress bar
     #' @param search_plot logical Map search results
     #' @param print_errors logical Print search errors to console
     #' 
-    #' @details By default, `set_starts` is NULL. If specified, `sample_frac` is
+    #' @details By default, `set_search_starts` is NULL. If specified, `sample_frac` is
     #'   overwritten and only the specified stand IDs are used to in the search.
     #'   
     search = function(
-      sample_frac = 0.1,
-      set_starts = NULL,
       search_plot = FALSE, 
       return_all = FALSE, 
       show_progress = FALSE,
@@ -148,27 +131,18 @@ patchmax <- R6::R6Class(
     ) {
       
       private$..check_req_fields()
-      private$..update_adj()
       
       if(search_plot){
         return_all = TRUE
       }
       
-      if(is.null(set_starts)){
-        nodes <- sample_frac(
-          geom = private$..geom, 
-          sample_frac = sample_frac, 
-          id_field = private$..param_id_field, 
-          spatial_grid = TRUE,
-          rng_seed = private$..param_seed)
-      } else {
-        nodes <- set_starts
-      }
+      x <- V(private$..net)$..sample
+      nodes <- V(private$..net)$name[x == 1]
       
-      message('Searching...')
+      message(glue::glue('Searching {round(sum(x)/length(x) * 100)}% of stands...'))
       
       search_out <- search_func(
-        cpp_graph = private$..update_adj(), 
+        cpp_graph = private$..update_edgelist(), 
         net = private$..update_net(), 
         nodes = nodes,
         objective_field = private$..param_objective_field, 
@@ -182,7 +156,7 @@ patchmax <- R6::R6Class(
         print_errors = print_errors)
       
       best_out = names(search_out)[which.max(search_out)]
-      message(glue::glue('\nBest start: {best_out} ({round(sample_frac*100)}% search)'))
+      message(glue::glue('\nBest start: {best_out}'))
       private$..pending_origin <- best_out
       
       # >>>>> Debugging: plot search results  <<<<<<<<
@@ -231,11 +205,10 @@ patchmax <- R6::R6Class(
     # ..........................................................................
     #' @description Search, build, and record multiple patches in sequence
     #' @param n_projects integer. Number of patches to build
-    #' @param sample_frac numeric. Fraction of stands to evaluate for patches
     #'
-    simulate = function(n_projects = 1, sample_frac = 0.1){
+    simulate = function(n_projects = 1){
       for(i in 1:n_projects){
-        self$search(sample_frac = sample_frac)$build()$record() 
+        self$search()$build()$record() 
       }
       return(invisible(self))
     },
@@ -390,6 +363,48 @@ patchmax <- R6::R6Class(
     },
     
     # ..........................................................................
+    #' @description Sample fraction of starts
+    #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
+
+    random_sample = function(sample_frac = 1){
+      
+      sample_nodes <- sample_frac(
+        geom = private$..geom, 
+        sample_frac = sample_frac, 
+        id_field = private$..param_id_field, 
+        spatial_grid = TRUE,
+        rng_seed = private$..param_rng_seed)
+      
+      sample_val <- ifelse(V(private$..net)$name %in% sample_nodes, 1, 0)
+      message(paste0(sum(sample_val), ' (', 
+        round(sum(sample_val)/length(sample_val) * 100), 
+        '%) stands randomly selected for search'))
+      
+      private$..net <- igraph::set_vertex_attr(
+        graph = private$..net,
+        name = '..sample',
+        value = sample_val)
+    },
+    
+    # ..........................................................................
+    #' @description Set search seeds manually
+    #' @param ids character vector Specified set of stands IDs to search
+    
+    set_sample = function(ids){
+      
+      sample_val <- ifelse(V(private$..net)$name %in% ids, 1, 0)
+      
+      message(paste0(sum(sample_val), ' (', 
+                     round(sum(sample_val)/length(sample_val) * 100), 
+                     '%) manually selected for search'))
+      
+      private$..net <- igraph::set_vertex_attr(
+        graph = private$..net,
+        name = '..sample',
+        value = sample_val)
+    },
+
+    # ..........................................................................
     #' @description Reset recorded patches
     #' @param patch_id optional. Patch ID to delete
     #' @details If blank, delete all patches. If negative, delete that number of
@@ -446,7 +461,7 @@ patchmax <- R6::R6Class(
     ..param_constraint_min = -Inf,
     ..param_sdw = 0.5,
     ..param_epw = 0.5,
-    ..param_seed = NULL,
+    ..param_rng_seed = NULL,
     ..pending_patch_stands = NULL,
     ..pending_patch_stats = NULL,
     ..pending_origin = NULL,
@@ -454,8 +469,8 @@ patchmax <- R6::R6Class(
     ..record_patch_stats = NULL,
 
     #' Update edgelist distances
-    ..update_adj = function(){
-      dst <- dist_func(
+    ..update_edgelist = function(){
+      dst <- adjust_distances(
         net = delete_vertices(private$..net, V(private$..net)$..patch_id > 0),
         objective_field = '..objective',
         sdw = private$..param_sdw, 
@@ -486,8 +501,9 @@ patchmax <- R6::R6Class(
     ..refresh_net_attr = function(){
       if(!is.null(private$..param_objective_field)){
         obj <- vertex_attr(private$..net, private$..param_objective_field)
-        area <- vertex_attr(private$..net, private$..param_area_field)
-        vertex_attr(private$..net, name = '..objective') <- obj/area
+        vertex_attr(private$..net, name = '..objective') <- obj
+        # area <- vertex_attr(private$..net, private$..param_area_field)
+        # vertex_attr(private$..net, name = '..objective') <- obj / area
       }
       if(!is.null(private$..param_area_field)){
         vertex_attr(private$..net, name = '..area') <- 
@@ -741,12 +757,12 @@ patchmax <- R6::R6Class(
     #' @field seed Get/set the seed used in random number generator
     seed = function(value){
       if(missing(value)){
-        private$..param_seed
+        private$..param_rng_seed
       } else {
         if((assertive::is_null(value) | assertive::is_numeric(value)) == FALSE){
           stop('Seed must be numeric, integer, or NULL')
         }
-        private$..param_seed <- value
+        private$..param_rng_seed <- value
       }
     },
     
