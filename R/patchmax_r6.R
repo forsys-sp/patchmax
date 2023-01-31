@@ -156,7 +156,7 @@ patchmax <- R6::R6Class(
         print_errors = print_errors)
       
       best_out = names(search_out)[which.max(search_out)]
-      message(glue::glue('\nBest start: {best_out}'))
+      message(glue::glue('Best start: {best_out}'))
       private$..pending_origin <- best_out
       
       # >>>>> Debugging: plot search results  <<<<<<<<
@@ -320,7 +320,7 @@ patchmax <- R6::R6Class(
       private$..pending_patch_stands <- NULL
       private$..pending_patch_stats <- NULL
       
-      message(glue::glue('Patch {patch_id} recorded\n-------------'))
+      message(glue::glue('Patch {patch_id} recorded'))
       
       return(invisible(self))
     },
