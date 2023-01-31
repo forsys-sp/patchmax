@@ -8,9 +8,9 @@
 #' @param P_size numeric. Project size
 #' @param P_size_min numeric. Minimum project size (when `P_constraint` is specified).
 #' @param P_number integer. Number of patches to simulate
-#' @param St_threshold character. Boolean statement describing whether stand is available for treatment (e.g., 'field > 0.5' or 'variable == 1')
-#' @param SDW numeric 0-1. Objective weight parameter. Default is 0.5. Stands with higher objective values are preferentially sought out if greater than 0.
-#' @param EPW numeric 0-1. Exclusion weight parameter. Default is 0.5. Degree to which excluded stands are avoided when building patches. No penaility is applied at 0.
+#' @param St_threshold character. Boolean statement on stand availability (e.g., 'field > 0.5')
+#' @param SDW numeric 0-1. Objective weight parameter. Higher objectives are preferentially sought at higher SDW. Default is 0.5. 
+#' @param EPW numeric 0-1. Exclusion weight parameter. Excluded stands are avoided at higher EPW. Default is 0.5. 
 #' @param exclusion_limit numeric 0-1. Maximum percent of patch area that can be excluded.
 #' @param P_constraint numeric vector. Stands values for the project constraint. If NULL, then  no secondary project constraint is not applied.
 #' @param P_constraint_max_value numeric. Project constraint upper value. Default is Inf
@@ -26,14 +26,16 @@
 #' @export
 
 simulate_projects <- function(
-    geom, #REQ
-    St_id, # REQ
-    St_area, # REQ
-    St_objective, # REQ
+    geom,
+    St_id,
+    St_area,
+    St_objective, 
     St_seed = NULL, # TODO To add in order to maintain compatibility with VP
-    P_size, # REQ
+    P_size,
     P_size_min = -Inf,
-    P_number = 1, # REQ  
+    P_number = 1, 
+    P_ceiling = NULL,
+    P_ceiling_max = Inf,
     St_threshold = NULL, 
     SDW = .5,
     EPW = .5,
@@ -54,6 +56,11 @@ simulate_projects <- function(
   geom$Area = St_area
   geom$Objective = St_objective
   geom$Constraint = P_constraint
+  
+  # set P ceiling to 1 if NULL
+  if(is.null(P_ceiling)){
+    P_ceiling <- rep(1, length(St_id))
+  }
   
   # create new patchmax instance
   pm <- patchmax$new(
@@ -78,9 +85,14 @@ simulate_projects <- function(
   
   pm$random_sample(sample_frac = sample_frac)
   
-  # simulate patches
-  for(i in 1:P_number){
-    pm$search(show_progress = T)$build()$record() 
+  # simulate patches until count or ceiling exceeded
+  pcnt <- 0; csum <- 0
+  while(pcnt < P_number & csum < P_ceiling_max){
+    pm$search(show_progress = T)$build()$record()
+    pcnt <- nrow(pm$patch_stats)
+    csum <- sum(P_ceiling[match(pm$patch_stands$Id, St_id)])
+    if(pcnt >= P_number) message('Project count reached')
+    if(csum >= P_ceiling_max) message('Project ceiling reached')
   }
 
   # output patch statistics
