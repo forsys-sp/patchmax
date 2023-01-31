@@ -86,18 +86,19 @@ simulate_projects <- function(
   pm$random_sample(sample_frac = sample_frac)
   
   # simulate patches until count or ceiling exceeded
-  pcnt <- 0; csum <- 0
-  while(pcnt < P_number & csum < P_ceiling_max){
+  repeat {
     pm$search(show_progress = F)$build()
-    csum <- csum + pm$pending_patch$area
+    csum <- sum(P_ceiling[match(pm$patch_stands$Id, St_id)]) + pm$pending_patch$area
+    pcnt <- ifelse(is.null(pm$patch_stats), 0, nrow(pm$patch_stats)) + 1
     if (csum > P_ceiling_max) {
       message('Project ceiling reached')
       break
-    }
-    if(pcnt >= P_number) {
+    } else if (pcnt > P_number) {
       message('Project count reached')
-    } 
-    pm$record()
+      break
+    } else {
+      pm$record()
+    }
   }
 
   # output patch statistics
