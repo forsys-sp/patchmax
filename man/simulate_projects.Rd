@@ -13,6 +13,8 @@ simulate_projects(
   P_size,
   P_size_min = -Inf,
   P_number = 1,
+  P_ceiling = NULL,
+  P_ceiling_max = Inf,
   St_threshold = NULL,
   SDW = 0.5,
   EPW = 0.5,
@@ -41,11 +43,11 @@ simulate_projects(
 
 \item{P_number}{integer. Number of patches to simulate}
 
-\item{St_threshold}{character. Boolean statement describing whether stand is available for treatment (e.g., 'field > 0.5' or 'variable == 1')}
+\item{St_threshold}{character. Boolean statement on stand availability (e.g., 'field > 0.5')}
 
-\item{SDW}{numeric 0-1. Objective weight parameter. Default is 0.5. Stands with higher objective values are preferentially sought out if greater than 0.}
+\item{SDW}{numeric 0-1. Objective weight parameter. Higher objectives are preferentially sought at higher SDW. Default is 0.5.}
 
-\item{EPW}{numeric 0-1. Exclusion weight parameter. Default is 0.5. Degree to which excluded stands are avoided when building patches. No penaility is applied at 0.}
+\item{EPW}{numeric 0-1. Exclusion weight parameter. Excluded stands are avoided at higher EPW. Default is 0.5.}
 
 \item{exclusion_limit}{numeric 0-1. Maximum percent of patch area that can be excluded.}
 
