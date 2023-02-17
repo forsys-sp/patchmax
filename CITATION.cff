@@ -1,0 +1,18 @@
+cff-version: 1.2.0 
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Belavenutti"
+  given-names: "Pedro"
+  orcid: "https://orcid.org/0000-0002-9315-8274"
+- family-names: "Evers"
+  given-names: "Cody"
+  orcid: "https://orcid.org/0000-0002-8449-7442"
+- family-names: "Day"
+  given-names: "Michelle"
+  orcid: "https://orcid.org/0000-0002-0188-4093"
+- family-names: "Ager"
+  given-names: "Alan"
+title: "patchmax: a spatial optimization package for building spatial priorities."
+version: 0.2.0
+date-released: 2023-02-02
+url: "https://github.com/forsys-sp/patchmax"
