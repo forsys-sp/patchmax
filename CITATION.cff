@@ -12,6 +12,9 @@ authors:
   orcid: "https://orcid.org/0000-0002-0188-4093"
 - family-names: "Ager"
   given-names: "Alan"
+- family-names: "Houtman"
+  given-names: "Rachel"
+  orcid: "https://orcid.org/0000-0003-2097-9423"
 title: "patchmax: a spatial optimization package for building spatial priorities."
 version: 0.2.0
 date-released: 2023-02-02
