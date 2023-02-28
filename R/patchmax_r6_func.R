@@ -128,7 +128,7 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
 
 #' Build patch of specified size while minimizing modified distance costs
 #'
-#' @param start_node character. Node id to start building patch
+#' @param seed character. Node id to start building patch
 #' @param cpp_graph graph object built with cppRouting
 #' @param net igraph Adjacency network with stand attributes
 #' @param a_max numeric. Maximum size of patch
@@ -140,7 +140,7 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
 #' @return data frame of nearest nodes arranged by distance
 
 build_func <- function(
-    start_node, 
+    seed, 
     cpp_graph, 
     net, 
     a_max, 
@@ -153,7 +153,7 @@ build_func <- function(
   # calculate distance matrix using Dijkstra's algorithm
   dmat <- get_distance_matrix(
     Graph = cpp_graph, 
-    from = start_node, 
+    from = seed, 
     to = cpp_graph$dict$ref)[1,]
   
   # sort nodes by distance
@@ -309,7 +309,7 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
     names(search_out) <- nodes
     
     if(sum(!is.na(search_out)) == 0){
-      stop('No patches possible')
+      message('No patches possible')
     }
     
     if(return_all == FALSE){
@@ -330,15 +330,15 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
 calc_patch_stats <- function(patch, verbose = TRUE){
   
   stats = data.frame(
-    start = patch$node[1], 
-    area = round(max(patch$area_cs),3),
-    coverage = round(sum(patch$area),3),
-    objective = round(sum(patch$objective * patch$threshold_met),3),
-    constraint = round(max(patch$constraint_cs),3),
+    seed = patch$node[1], 
+    area = round(max(patch$area_cs),1),
+    coverage = round(sum(patch$area),1),
+    objective = round(sum(patch$objective * patch$threshold_met),1),
+    constraint = round(max(patch$constraint_cs),1),
     excluded = 100-round(max(patch$area_cs)/sum(patch$area)*100))
   
   if(verbose){
-    message(glue::glue('Patch stats: start {stats$start}, objective {stats$objective}, area {stats$area}, coverage {stats$coverage}, objective/area {stats$objective_area}, constraint {stats$constraint}, excluded {stats$excluded}%'))
+    message(glue::glue('Patch stats: seed {stats$seed}, obj {stats$objective}, area {stats$area}, coverage {stats$coverage}, constraint {stats$constraint}, excluded {stats$excluded}%'))
   }
 
   return(stats)

@@ -5,7 +5,7 @@
 \title{Build patch of specified size while minimizing modified distance costs}
 \usage{
 build_func(
-  start_node,
+  seed,
   cpp_graph,
   net,
   a_max,
@@ -16,7 +16,7 @@ build_func(
 )
 }
 \arguments{
-\item{start_node}{character. Node id to start building patch}
+\item{seed}{character. Node id to start building patch}
 
 \item{cpp_graph}{graph object built with cppRouting}
 

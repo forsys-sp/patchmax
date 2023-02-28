@@ -82,13 +82,19 @@ patchmax <- R6::R6Class(
     build = function(node=NULL){
       
       if(is.null(node)){
-        node <- private$..pending_origin
+        node <- private$..pending_seed
+      }
+      
+      if(length(node)==0){
+        message('Cancelling build and flagging stop')
+        private$..kill_switch = TRUE
+        return(invisible(self))
       }
       
       private$..check_req_fields()
       
       patch <- build_func(
-        start_node = node, 
+        seed = node, 
         cpp_graph = private$..update_edgelist(), 
         net = private$..update_net(),
         a_max = private$..param_area_max,
@@ -108,19 +114,17 @@ patchmax <- R6::R6Class(
       private$..pending_patch_stands <- patch
       private$..pending_patch_stats <- calc_patch_stats(patch)
       
-      sum(patch$objective * patch$threshold_met * patch$area)
-
       return(invisible(self))
     },
     
     # ..........................................................................
-    #' @description Search patch origin with highest objective
+    #' @description Search for patch seed with highest objective
     #' @param return_all logical Return search results
     #' @param show_progress logical Show search progress bar
     #' @param search_plot logical Map search results
     #' @param print_errors logical Print search errors to console
     #' 
-    #' @details By default, `set_search_starts` is NULL. If specified, `sample_frac` is
+    #' @details By default, `set_search_seeds` is NULL. If specified, `sample_frac` is
     #'   overwritten and only the specified stand IDs are used to in the search.
     #'   
     search = function(
@@ -156,15 +160,15 @@ patchmax <- R6::R6Class(
         print_errors = print_errors)
       
       best_out = names(search_out)[which.max(search_out)]
-      message(glue::glue('Best start: {best_out}'))
-      private$..pending_origin <- best_out
+      message(glue::glue('Best seed: {best_out}'))
+      private$..pending_seed <- best_out
       
       # >>>>> Debugging: plot search results  <<<<<<<<
       if(search_plot){
 
         search_dat <- data.frame(
-          names(search_out), 
-          search_out = as.numeric(search_out)
+            names(search_out), 
+            search_out = as.numeric(search_out)
           ) %>%
           rename(!!private$..param_id_field := 1)
         
@@ -173,8 +177,8 @@ patchmax <- R6::R6Class(
           y = search_dat, 
           by=private$..param_id_field)
         
-        # identify best origin
-        origin <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
+        # identify best seed
+        seed <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
         
         # build best patch
         self$build(best_out)
@@ -183,7 +187,7 @@ patchmax <- R6::R6Class(
           summarize()
         p1 <- ggplot() + 
           geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
-          geom_sf(data=suppressWarnings(st_centroid(origin)), size=4, shape=5) +
+          geom_sf(data=suppressWarnings(st_centroid(seed)), size=4, shape=5) +
           scale_fill_gradientn(colors = sf.colors(10)) +
           theme(legend.position = 'bottom') +
           theme_void() + 
@@ -217,12 +221,12 @@ patchmax <- R6::R6Class(
     #' @description Plot patch and stand map
     #' @param plot_field character Field name to plot
     #' @param return_plot logical Return ggplot object
-    #' @param show_origin logical 
+    #' @param show_seed logical 
     #' @param apply_threshold logical
     #'
     plot = function(plot_field = NULL, 
                     return_plot = FALSE, 
-                    show_origin = FALSE,
+                    show_seed = FALSE,
                     apply_threshold = FALSE
                     ){
       
@@ -261,14 +265,14 @@ patchmax <- R6::R6Class(
       
       if(nrow(patches) > 0){
         
-        x <- private$..record_patch_stats$start
-        origins = geom %>% filter(pull(geom, private$..param_id_field) %in% x) %>% select(..patch_id)
+        x <- private$..record_patch_stats$seed
+        seeds = geom %>% filter(pull(geom, private$..param_id_field) %in% x) %>% select(..patch_id)
         excluded <- geom %>% filter(..patch_id != 0, ..include == 0)
         
         plot <- plot +
           geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
           geom_sf(data=suppressWarnings(st_centroid(excluded)), shape=4, size=1, alpha=0.5) +
-          geom_sf_label(data=origins, aes(label=..patch_id), label.r = unit(.5, "lines"))
+          geom_sf_label(data=seeds, aes(label=..patch_id), label.r = unit(.5, "lines"))
       }
       
       if(return_plot){
@@ -286,8 +290,11 @@ patchmax <- R6::R6Class(
     #' @param enforce_constraint logical Apply secondary constraint
     #'
     record = function(patch_id = NULL, enforce_constraint = TRUE){
-      if(is.null(private$..pending_patch_stands))
-        stop('No patch. Run search or select first.')
+      
+      if(is.null(private$..pending_patch_stands)){
+        message('No patch has been built')
+        return(invisible(self))
+      }
       
       # generate patch id if missing
       if(is.null(patch_id)){
@@ -321,7 +328,6 @@ patchmax <- R6::R6Class(
       private$..pending_patch_stats <- NULL
       
       message(glue::glue('Patch {patch_id} recorded'))
-      
       return(invisible(self))
     },
     
@@ -358,7 +364,7 @@ patchmax <- R6::R6Class(
     },
     
     # ..........................................................................
-    #' @description Sample fraction of starts
+    #' @description Sample fraction of stands
     #' @param sample_frac numeric Fraction of stands to evaluate (0-1)
 
     random_sample = function(sample_frac = 1){
@@ -426,9 +432,10 @@ patchmax <- R6::R6Class(
         }
       }
 
+      private$..kill_switch = FALSE
       private$..pending_patch_stands = NULL
       private$..pending_patch_stats = NULL
-      private$..pending_origin = NULL
+      private$..pending_seed = NULL
       return(invisible(self))
     }
   ),
@@ -459,9 +466,10 @@ patchmax <- R6::R6Class(
     ..param_rng_seed = NULL,
     ..pending_patch_stands = NULL,
     ..pending_patch_stats = NULL,
-    ..pending_origin = NULL,
+    ..pending_seed = NULL,
     ..record_patch_stands = NULL,
     ..record_patch_stats = NULL,
+    ..kill_switch = FALSE,
 
     #' Update edgelist distances
     ..update_edgelist = function(){
@@ -559,9 +567,19 @@ patchmax <- R6::R6Class(
       }
     },
     
-    #' @field best Get pending stand id representing best patch origin. Read only
+    #' @field kill_switch = Flag for stopping patchmax
+    kill_switch = function(value){
+      if(missing(value)){
+        private$..kill_switch
+      } else {
+        assertive::is_logical(value)
+        private$..kill_switch = value
+      }
+    },
+    
+    #' @field best Get pending stand id representing best patch seed. Read only
     best = function(){
-      private$..pending_origin
+      private$..pending_seed
     },
     
     #' @field pending_stands Get stands in pending patch. Read only

@@ -23,7 +23,9 @@ pm$plot()
 
 \item{\code{geom}}{Get sf geometry object. Read only}
 
-\item{\code{best}}{Get pending stand id representing best patch origin. Read only}
+\item{\code{kill_switch}}{= Flag for stopping patchmax}
+
+\item{\code{best}}{Get pending stand id representing best patch seed. Read only}
 
 \item{\code{pending_stands}}{Get stands in pending patch. Read only}
 
@@ -142,7 +144,7 @@ If node is NULL, use stand id found during search
 \if{html}{\out{<a id="method-patchmax-search"></a>}}
 \if{latex}{\out{\hypertarget{method-patchmax-search}{}}}
 \subsection{Method \code{search()}}{
-Search patch origin with highest objective
+Search for patch seed with highest objective
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{patchmax$search(
   search_plot = FALSE,
@@ -166,7 +168,7 @@ Search patch origin with highest objective
 \if{html}{\out{</div>}}
 }
 \subsection{Details}{
-By default, \code{set_search_starts} is NULL. If specified, \code{sample_frac} is
+By default, \code{set_search_seeds} is NULL. If specified, \code{sample_frac} is
 overwritten and only the specified stand IDs are used to in the search.
 }
 
@@ -197,7 +199,7 @@ Plot patch and stand map
 \if{html}{\out{<div class="r">}}\preformatted{patchmax$plot(
   plot_field = NULL,
   return_plot = FALSE,
-  show_origin = FALSE,
+  show_seed = FALSE,
   apply_threshold = FALSE
 )}\if{html}{\out{</div>}}
 }
@@ -209,7 +211,7 @@ Plot patch and stand map
 
 \item{\code{return_plot}}{logical Return ggplot object}
 
-\item{\code{show_origin}}{logical}
+\item{\code{show_seed}}{logical}
 
 \item{\code{apply_threshold}}{logical}
 }
@@ -258,7 +260,7 @@ Summarize recorded patches
 \if{html}{\out{<a id="method-patchmax-random_sample"></a>}}
 \if{latex}{\out{\hypertarget{method-patchmax-random_sample}{}}}
 \subsection{Method \code{random_sample()}}{
-Sample fraction of starts
+Sample fraction of stands
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{patchmax$random_sample(sample_frac = 1)}\if{html}{\out{</div>}}
 }

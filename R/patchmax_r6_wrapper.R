@@ -87,18 +87,33 @@ simulate_projects <- function(
   
   # simulate patches until count or ceiling exceeded
   repeat {
+    
+    # search and build best patch
     pm$search(show_progress = F)$build()
-    csum <- ifelse(is.null(pm$patch_stats), 0, sum(pm$patch_stats$area)) + pm$pending_patch$area 
-    pcnt <- ifelse(is.null(pm$patch_stats), 0, nrow(pm$patch_stats)) + 1
+    
+    # break search if kill switch triggered
+    if(pm$kill_switch == TRUE){
+      message('Kill switch triggered')
+      break
+    }
+    
+    # increment area count
+    csum <- ifelse(is.null(pm$patch_stats), 0, sum(pm$patch_stats$area)) + 
+      ifelse(is.null(pm$pending_patch$area), 0, pm$pending_patch$area)
     if (csum > P_ceiling_max) {
       message('Project ceiling reached')
       break
-    } else if (pcnt > P_number) {
+    } 
+    
+    # increment project count
+    pcnt <- ifelse(is.null(pm$patch_stats), 0, nrow(pm$patch_stats)) + 1
+    if (pcnt > P_number) {
       message('Project count reached')
       break
-    } else {
-      pm$record()
-    }
+    } 
+    
+    # record patch info
+    pm$record()
   }
 
   # output patch statistics
