@@ -4,14 +4,26 @@ Title: Patchmax
 Version: 0.2.0
 Authors@R: 
   c(
+    person(given = "Cody",
+      family = "Evers",
+      role = c("aut","cre"),
+      email = "cevers@pdx.edu",),
     person(given = "Pedro", 
       family = "Belavenutti", 
       role = c("aut"),
       email = "inv.florestal@gmail.com"),
-    person(given = "Cody",
-      family = "Evers",
-      role = c("aut","cre"),
-      email = "cevers@pdx.edu") 
+    person(given = "Michelle",
+      family = "Day",
+      role = c("aut"),
+      email = "michelle.day@usda.gov",),
+    person(given = "Alan",
+      family = "Ager",
+      role = c("aut"),
+      email = "alan.ager@oregonstate.edu"),
+   person(given = "Rachel",
+      family = "Houtman",
+      role = c("aut", "trl"),
+      email = "Rachel.Houtman@oregonstate.edu")
   )
 Description: Patchmax is a program used to help design and explore spatially explicit landscape treatment scenarios. Patchmax can be used to prioritize treatment location on small landscapes (project level implementation) to large landscapes (national forest to multi-regional planning efforts). Although Patchmax was originally designed for fuel treatment planning, to fill the gap between fire modeling programs and planning systems in the fuel treatment planning process, it can be applied to fiber production, habitat restoration, and for other resource management problems.
 Depends: R (>= 4.0.3)
@@ -27,6 +39,7 @@ Imports:
   assertive,
   proxy
 License: GPL-3
+URL: https://github.com/forsys-sp/patchmax
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
