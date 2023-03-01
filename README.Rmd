@@ -27,11 +27,11 @@ Dependences: R (>= 4.0.3) and packages (igraph, data.table, sf, doParallel, para
 
 ## Installation
 
-The latest official version of the Patchmax package can be installed from GitHub using the following code after we provide your personal access token.
+The current official version of the _patchmax_ package can be installed from [GitHub](https://github.com/forsys-sp/patchmax/). 
 
 ```{r, eval = FALSE}
 if (!require(remotes)) install.packages("remotes")
-remotes::install_github("forsys-sp/patchmax", auth_token = 'your_token_here')
+remotes::install_github("forsys-sp/patchmax")
 ```
 
 ## Usage
@@ -39,7 +39,7 @@ Stand treatment units are represented as polygons in a spatial vector format. Ea
 
 ```{r, eval = FALSE}
 library(patchmax)
-pm <- patchmax_generator$new(...)
+pm <- patchmax$new(...)
 pm$area_max = 1200
 pm$search()$build()$record()
 ```
@@ -68,7 +68,7 @@ plot(geom[,'cost'], border=NA)
 Patchmax is written as R6 class, which uses a slightly different syntax the functional programming design used in most R functions. To use patchmax, we first create a patchmax object called `pm` using the new method in the patchmax_generator class. `print(pm)` shows how the object is structured into public and private components. Several of the public elements are called active bindings, which is used to get and set private elements under very specific conditions. The private elements cannot be directly access or changed from the outside.
 
 ```{r}
-pm <- patchmax_generator$new(
+pm <- patchmax$new(
   geom = geom, 
   id_field = 'id', 
   objective_field = 'p4', 
@@ -76,23 +76,44 @@ pm <- patchmax_generator$new(
   area_max = 1000)
 ```
 
-The core purpose of patchmax is build spatial contiguous patches that maximizes some objective given some maximum size constraint. The example below shows how this is done over a series of steps: (1) patchmax searches for the best place, (2) builds that patch, (3) plots the patch, (4) records the patch, (5) describe the patch statistics.
+The core purpose of patchmax is build spatially contiguous patches that maximizes some objective given some maximum size constraint. The example below shows how this is done over a series of steps: (1) patchmax searches for the best place, (2) builds that patch, (3) plots the patch, (4) records the patch, (5) describes the patch statistics.
 
-```{r, basic_example}
+```{r, message=FALSE, warning=FALSE, fig.height=3}
 pm$search()
 pm$build()
 pm$plot()
+pm$record()
+pm$summarize()
 ```
-Note that the same set of sequence of steps can be chained together into a single line: `pm$search()$build$plot()`, which shows how multiple actions can be combined in different ways to produce different results.
 
-To get a better sense of how the patch is selected, let's look at the search results in more detail. 
+Note that the same set of sequence of steps can be chained together into a single line: `pm$search()$build$plot()$record()$summarize()`, which shows how multiple actions can be combined in different ways to produce different results. 
 
-```{r, search_example}
-pm$search(sample_frac = 1, plot_search = T)
+## Simulating multiple projects
+We can also run patchmax to simulate a set number of projects based on our pm object.
+
+
+```{r, basic_example}
+# First reset results
+pm$reset()
+
+# Simulate 10 projects and summarize results
+pm$simulate(10)
+pm$summarize()
 ```
 
 ## Studies
-Belavenutti, Pedro, Alan A. Ager, Michelle A. Day, and Woodam Chung. 2022. Designing forest restoration projects to optimize the application of broadcast burning. Ecological Economics.
+Belavenutti, Pedro, Alan A. Ager, Michelle A. Day, and Woodam Chung. 2022. Designing forest restoration projects to optimize the application of broadcast burning. Ecological Economics 201. doi: 10.1016/j.ecolecon.2022.107558.
 
+Belavenutti, Pedro, Alan. A. Ager, Michelle A. Day, and Woodam Chung. 2022. Multi-objective scheduling of fuel treatments to implement a linear fuel break network. Fire 6:1. doi: 10.3390/fire6010001.
 
+## Citation
 
+Please cite the _patchmax_ package when using it in publications. To cite the current official version, please use:
+
+```{r, echo = FALSE, results = "asis", comment = ""}
+cat(paste0("> Evers C, Belavenutti P, Day M, Houtman R, and Ager A. (",format(Sys.time(), "%Y"),"). Patchmax: a spatial optimization package for building spatial priorities.. R package version 0.2.. Available at https://github.com/forsys-sp/patchmax.\n"))
+```
+
+## Getting help
+
+If you have any questions about the _patchmax_ package or suggestions for improving it, please [post an issue on the code repository](https://github.com/forsys-sp/patchmax/issues/new).
