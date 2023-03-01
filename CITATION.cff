@@ -1,12 +1,12 @@
 cff-version: 1.2.0 
 message: "If you use this software, please cite it as below."
 authors:
-- family-names: "Belavenutti"
-  given-names: "Pedro"
-  orcid: "https://orcid.org/0000-0002-9315-8274"
 - family-names: "Evers"
   given-names: "Cody"
   orcid: "https://orcid.org/0000-0002-8449-7442"
+- family-names: "Belavenutti"
+  given-names: "Pedro"
+  orcid: "https://orcid.org/0000-0002-9315-8274"
 - family-names: "Day"
   given-names: "Michelle"
   orcid: "https://orcid.org/0000-0002-0188-4093"
@@ -19,3 +19,20 @@ title: "patchmax: a spatial optimization package for building spatial priorities
 version: 0.2.0
 date-released: 2023-02-02
 url: "https://github.com/forsys-sp/patchmax"
+references:
+  - authors:
+      - family-names: Belavenutti
+        given-names: Pedro
+      - family-names: Ager
+        given-names: Alan
+      - family-names: Chung
+        given-names: Woody
+      - family-names: Day
+        given-names: Michelle
+    doi: 10.1016/j.ecolecon.2022.107558
+    journal: "Ecological Economics"
+    scope: "Cite this paper if you want to reference the original concept of the program and/or version 0.1.1 or earlier."
+    title: "Designing forest restoration projects to optimize the application of broadcast burning."
+    type: article
+    volume: 201
+    year: 2022
