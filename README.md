@@ -1,6 +1,5 @@
 Patchmax
 ================
-Pedro Belavenutti & Cody Evers
 
 <!--- README.md is generated from README.Rmd. Please edit that file -->
 

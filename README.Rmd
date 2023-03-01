@@ -1,6 +1,5 @@
 ---
 title: "Patchmax"
-author: "Pedro Belavenutti & Cody Evers"
 output: github_document
 ---
 
