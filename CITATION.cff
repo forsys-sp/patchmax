@@ -21,7 +21,7 @@ date-released: 2023-02-02
 url: "https://github.com/forsys-sp/patchmax"
 references:
   - authors:
-     - family-names: Belavenutti
+      - family-names: Belavenutti
         given-names: Pedro
     title: "Patchmax with breadth first search algorithm"
     type: software
