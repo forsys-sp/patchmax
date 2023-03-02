@@ -21,12 +21,7 @@ purrr, proxy, cppRouting)*
 
 ## Installation
 
-<<<<<<< Updated upstream
-The current official version of the *patchmax* package can be installed
-from [GitHub](https://github.com/forsys-sp/patchmax/).
-=======
 Patchmax package can be installed from GitHub using the following code.
->>>>>>> Stashed changes
 
 ``` r
 if (!require(remotes)) install.packages("remotes")
@@ -36,19 +31,6 @@ remotes::install_github("forsys-sp/patchmax")
 ## Usage
 
 Stand treatment units are represented as polygons in a spatial vector
-<<<<<<< Updated upstream
-format. Each polygon represents a different treatment unit.
-
-``` r
-library(patchmax)
-pm <- patchmax$new(...)
-pm$area_max = 1200
-pm$search()$build()$record()
-```
-
-First, let’s load some example data and map the included fields. To keep
-things simple, we focus only a subset of the entire study area.
-=======
 format. Each polygon represents a different treatment unit with numerous
 attributes that can be used to prioritize or constrain patch
 construction. To start, let’s load some example data included with
@@ -56,19 +38,12 @@ patchmax. To keep things simple, we focus only a subset of the entire
 study area. Further below, we’ll set up a scenairo where we create
 several patches in sequence that maximize priority *p4* up to a patch
 size of 1000 ha and a maximum cost of \$50000
->>>>>>> Stashed changes
 
 ``` r
 library(dplyr)
 library(sf)
 library(purrr)
 
-<<<<<<< Updated upstream
-    ## Linking to GEOS 3.10.2, GDAL 3.4.1, PROJ 7.2.1; sf_use_s2() is TRUE
-
-``` r
-=======
->>>>>>> Stashed changes
 geom <- patchmax::test_forest %>% 
   filter(row > 20, row <= 40, col > 20, col <= 40)
 
@@ -110,163 +85,21 @@ pm <- patchmax$new(
 The core purpose of patchmax is build spatially contiguous patches that
 maximizes some objective given some maximum size constraint. The example
 below shows how this is done over a series of steps: (1) patchmax
-<<<<<<< Updated upstream
 searches for the best place, (2) builds that patch, (3) plots the patch,
 (4) records the patch, (5) describes the patch statistics.
-=======
-searches for the best place based on the parameters given, (2) builds
-that patch, (3) records the patch, (4) plots the patch.
->>>>>>> Stashed changes
 
 ``` r
 pm$search()
 pm$build()
-<<<<<<< Updated upstream
+pm$record()
 pm$plot()
 ```
 
-![](man/figures/unnamed-chunk-6-1.png)<!-- -->
-
-``` r
-pm$record()
-pm$summarize()
-```
-
-    ## # A tibble: 1 x 3
-    ##   patch_id    p4    ha
-    ##      <dbl> <dbl> <dbl>
-    ## 1        1  8.75  1000
+![](man/figures/unnamed-chunk-5-1.png)<!-- -->
 
 Note that the same set of sequence of steps can be chained together into
-a single line: `pm$search()$build$plot()$record()$summarize()`, which
-shows how multiple actions can be combined in different ways to produce
-different results.
-
-## Simulating multiple projects
-
-We can also run patchmax to simulate a set number of projects based on
-our pm object.
-
-``` r
-# First reset results
-pm$reset()
-```
-
-    ## All patches reset
-
-``` r
-# Simulate 10 projects and summarize results
-pm$simulate(10)
-```
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 2732
-
-    ## Patch stats: seed 2732, obj 8.8, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 1 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 3629
-
-    ## Patch stats: seed 3629, obj 8, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 2 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 2835
-
-    ## Patch stats: seed 2835, obj 7.4, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 3 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 2022
-
-    ## Patch stats: seed 2022, obj 7.2, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 4 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 3637
-
-    ## Patch stats: seed 3637, obj 7, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 5 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 2830
-
-    ## Patch stats: seed 2830, obj 6.4, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 6 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 3731
-
-    ## Patch stats: seed 3731, obj 6.3, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 7 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 3238
-
-    ## Patch stats: seed 3238, obj 6.3, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 8 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 2923
-
-    ## Patch stats: seed 2923, obj 6.2, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 9 recorded
-
-    ## Searching 100% of stands...
-
-    ## Best seed: 2635
-
-    ## Patch stats: seed 2635, obj 6.1, area 1000, coverage 1000, constraint 1000, excluded 0%
-
-    ## Patch 10 recorded
-
-``` r
-pm$summarize()
-```
-
-    ## Joining, by = "id"
-
-    ## # A tibble: 10 x 3
-    ##    patch_id    p4    ha
-    ##       <dbl> <dbl> <dbl>
-    ##  1        1  8.75  1000
-    ##  2        2  8.02  1000
-    ##  3        3  7.41  1000
-    ##  4        4  7.22  1000
-    ##  5        5  6.98  1000
-    ##  6        6  6.41  1000
-    ##  7        7  6.31  1000
-    ##  8        8  6.33  1000
-    ##  9        9  6.17  1000
-    ## 10       10  6.07  1000
-=======
-pm$record()
-pm$plot()
-```
-
-![](man/figures/basic_example-1.png)<!-- --> Note that the same set of
-sequence of steps can be chained together into a single line:
-`pm$search()$build()$plot()`. This is a distinct feature of R6 class
-objects that works similar to piping `|>`.
+a single line: `pm$search()$build()$plot()`. This is a distinct feature
+of R6 class objects that works similar to piping `|>`.
 
 To get a better sense of how the patch is selected, let’s look at the
 search results in more detail. The plot below shows the patch scores
@@ -280,23 +113,26 @@ sense, patchmax works similar to a moving window spatial analysis
 pm$search(search_plot = T)
 ```
 
-![](man/figures/search_example-1.png)<!-- --> Next we’ll change a few
-additional parameters and see how this affects the search. Notice how
-two large blocks of the landscape are excluded due to the new treatment
-threshold.
+![](man/figures/search_example-1.png)<!-- -->
+
+Next we’ll change a few additional parameters and see how this affects
+the search. Notice how two large blocks of the landscape are excluded
+due to the new treatment threshold.
 
 ``` r
 pm$threshold = 't1 == 1'
 pm$search(search_plot = T)
 ```
 
-![](man/figures/unnamed-chunk-5-1.png)<!-- --> Next, let’s add a
-secondary constraint that limits the overall cost of each patch to
-15000. Note how this suppresses the search_out scores substantially;
-many of the potential patch locations that were able to produce high
-quality patches are now blue. This change is the result of the new cost
-constraint limiting patch sizes in many areas of the landscape from
-growing more than a few stands in size, hence the lower scores.
+![](man/figures/unnamed-chunk-6-1.png)<!-- -->
+
+Next, let’s add a secondary constraint that limits the overall cost of
+each patch to 15000. Note how this suppresses the search_out scores
+substantially; many of the potential patch locations that were able to
+produce high quality patches are now blue. This change is the result of
+the new cost constraint limiting patch sizes in many areas of the
+landscape from growing more than a few stands in size, hence the lower
+scores.
 
 ``` r
 pm$constraint_field = 'cost'
@@ -304,20 +140,22 @@ pm$constraint_max = 15000
 pm$search(search_plot = T)
 ```
 
-![](man/figures/unnamed-chunk-6-1.png)<!-- --> Adding a minimize patch
-size constrains potential projects further and remove additional
-sections of the landscape from consideration since no viable patches
-exist.
+![](man/figures/unnamed-chunk-7-1.png)<!-- -->
+
+Adding a minimum patch size constrains potential projects further and
+removes additional sections of the landscape from consideration since no
+viable patches exist.
 
 ``` r
 pm$area_min = 500
 pm$search(search_plot = T)
 ```
 
-![](man/figures/unnamed-chunk-7-1.png)<!-- --> As a final step, we’ll
-reset the patchmax run and use the simulate method to identify the 10
-highest prioirty patches given the area, cost, and threshold
-constraints.
+![](man/figures/unnamed-chunk-8-1.png)<!-- -->
+
+As a final step, we’ll reset the patchmax run and use the simulate
+method to identify the 10 highest prioirty patches given the area, cost
+and threshold constraints.
 
 ``` r
 pm$reset()
@@ -325,7 +163,7 @@ pm$simulate(10)
 pm$plot()
 ```
 
-![](man/figures/unnamed-chunk-8-1.png)<!-- -->
+![](man/figures/unnamed-chunk-9-1.png)<!-- -->
 
 ``` r
 pm$patch_stats
@@ -342,7 +180,12 @@ pm$patch_stats
     ## 8         8 3840  800      800       4.0      13850        0
     ## 9         9 2529  700      700       4.0      14640        0
     ## 10       10 2923  600      600       3.9      14300        0
->>>>>>> Stashed changes
+
+## Getting help
+
+If you have any questions about the *patchmax* package or suggestions
+for improving it, please [post an issue on the code
+repository](https://github.com/forsys-sp/patchmax/issues/new).
 
 ## Studies
 
@@ -354,25 +197,4 @@ evaluating patches.
 
 Belavenutti, Pedro, Alan A. Ager, Michelle A. Day, and Woodam Chung.
 2022. Designing forest restoration projects to optimize the application
-of broadcast burning. Ecological Economics 201. doi:
-10.1016/j.ecolecon.2022.107558.
-
-Belavenutti, Pedro, Alan. A. Ager, Michelle A. Day, and Woodam Chung.
-2022. Multi-objective scheduling of fuel treatments to implement a
-linear fuel break network. Fire 6:1. doi: 10.3390/fire6010001.
-
-## Citation
-
-Please cite the *patchmax* package when using it in publications. To
-cite the current official version, please use:
-
-> Evers C, Belavenutti P, Day M, Houtman R, and Ager A. (2023).
-> Patchmax: a spatial optimization package for building spatial
-> priorities.. R package version 0.2.. Available at
-> <https://github.com/forsys-sp/patchmax>.
-
-## Getting help
-
-If you have any questions about the *patchmax* package or suggestions
-for improving it, please [post an issue on the code
-repository](https://github.com/forsys-sp/patchmax/issues/new).
+of broadcast burning. Ecological Economics.s
