@@ -602,6 +602,13 @@ patchmax <- R6::R6Class(
       private$..record_patch_stats
     },
     
+    #' @field patch_stats_2 Get list of recorded patches
+    patch_count = function(){
+      ps <- private$..record_patch_stats
+      cnt <- ifelse(is.null(ps), 0, nrow(ps))
+      return(cnt)
+    },
+    
     #' @field id_field Get/set stand ID field
     id_field = function(value){
       if(missing(value)){

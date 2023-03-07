@@ -116,25 +116,30 @@ simulate_projects <- function(
     pm$record()
   }
 
-  # output patch statistics
-  out_a <- pm$patch_stats %>% select(
-    Project = patch_id,
-    Area = area,
-    TotalArea = coverage,
-    Objective = objective,
-    Constraint = constraint
-  )
-  
-  # output stand data
-  out_b <- pm$patch_stands %>% select(
-    Project = patch_id,
-    Stands = 2,
-    DoTreat = include,
-    Area = area,
-    Objective = objective,
-    Constraint = constraint
-  )
-  
+  if(pm$patch_count > 0){
+    # output patch statistics
+    out_a <- pm$patch_stats %>% select(
+      Project = patch_id,
+      Area = area,
+      TotalArea = coverage,
+      Objective = objective,
+      Constraint = constraint
+    )
+    
+    # output stand data
+    out_b <- pm$patch_stands %>% select(
+      Project = patch_id,
+      Stands = 2,
+      DoTreat = include,
+      Area = area,
+      Objective = objective,
+      Constraint = constraint
+    )
+  } else {
+    out_a <- NULL
+    out_b <- NULL
+  }
+
   out <- list(out_a, out_b)
   return(out)
 }

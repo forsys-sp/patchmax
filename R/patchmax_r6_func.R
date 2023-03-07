@@ -25,8 +25,11 @@ create_network <- function(geom, id_field, method = 'queen') {
            data.frame())
   
   # build adjacency network
+  vert <- geom %>% st_drop_geometry() %>% select(id_field)
   net <- data.frame(A = id[adj$row.id], B = id[adj$col.id]) %>%
-    graph_from_data_frame(directed = TRUE)
+    graph_from_data_frame(
+      directed = TRUE, 
+      vertices = vert)
 
   # calculate centroid coordinates
   suppressWarnings({
