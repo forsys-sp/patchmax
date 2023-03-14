@@ -117,7 +117,7 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
   
   # modify distance based on objective 
   # (increase distance to lower objectives by factor of X)
-  el$dist_adj <- el$dist * (2 - el$objective)^(10^sdw)
+  el$dist_adj <- el$dist * (1+(1-el$objective)*(10^sdw))
 
   # modify distance based on exclusion status
   # (increase distance to excluded areas by factor of X)
@@ -154,57 +154,48 @@ build_func <- function(
   ) {
   
   # calculate distance matrix using Dijkstra's algorithm
-  dmat <- get_distance_matrix(
-    Graph = cpp_graph, 
-    from = seed, 
-    to = cpp_graph$dict$ref)[1,]
+  dmat <- get_distance_matrix(cpp_graph, seed, cpp_graph$dict$ref)[1,]
   
   # sort nodes by distance
-  dist_df <- data.frame(
+  i = match(cpp_graph$dict$ref, V(net)$name)
+  dt <- data.table(
     node = names(dmat), 
     dist = dmat, 
-    area = vertex_attr(net, '..area', match(cpp_graph$dict$ref, V(net)$name)), 
-    include = vertex_attr(net, '..include', match(cpp_graph$dict$ref, V(net)$name)),
-    objective = vertex_attr(net, '..objective', match(cpp_graph$dict$ref, V(net)$name)), 
+    area = vertex_attr(net, '..area', i), 
+    include = vertex_attr(net, '..include', i),
+    objective = vertex_attr(net, '..objective', i), 
     constraint_met = TRUE,
     row.names = NULL) 
   
-  # accumulate constraints
-  dist_df <- dist_df %>% 
-    arrange(dist) %>%
-    filter(!is.na(dist)) %>%
-    mutate(threshold_met = (include == 1)) %>%
-    mutate(area_cs = cumsum(area * threshold_met)) %>%
-    mutate(area_met = (area_cs <= !!a_max ) & (area_cs >= !!a_min)) %>%
-    mutate(objective_cs = cumsum(objective * threshold_met))
-
-  dist_df <- dist_df %>% 
-    relocate(node, dist, include, contains('objective'), contains('area'), 
-             contains('constraint'), contains('threshold'))
+  # sort nodes by distance
+  dt <- dt[order(dist)
+  ][,threshold_met := (include == 1)
+  ][,area_cs := cumsum(area * threshold_met)
+  ][,area_met := (area_cs <= a_max) & (area_cs >= a_min)
+  ][,objective_cs := cumsum(objective * threshold_met)]
   
   # select stands up to max patch size
-  a_cs = dist_df$area_cs
-  a_d <- ifelse(a_max - a_cs < 0, NA, a_max - a_cs)
-  pnodes <- dist_df[1:which.min(a_d),]
+  dt <- dt[1:which.min(
+    ifelse(a_max - area_cs < 0, NA, a_max - area_cs)
+  )]
   
   # evaluate secondary constraint if present
-  if (!is.null(vertex_attr(net, '..constraint'))){
-    c_v <- vertex_attr(net, '..constraint', match(pnodes$node, V(net)$name))
-    c_cs <- cumsum(c_v * pnodes$include)
-    pnodes$constraint <- c_v
-    pnodes$constraint_cs <- c_cs
-    pnodes$constraint_met <- (c_cs > c_min) & (c_cs < c_max)
-    # remove stands that fail constraint 
+  const <- vertex_attr(net, '..constraint')
+  if (!is.null(const)){
+    c_v <- const[match(dt$node, V(net)$name)]
+    dt <- dt[,constraint := c_v
+    ][,constraint_cs := cumsum(c_v * include)
+    ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)]
     if (c_enforce){
-      if (sum(pnodes$constraint_met) > 0) {
-        pnodes <- pnodes[1:max(which(pnodes$constraint_met == TRUE)),]
+      if (sum(dt$constraint_met) > 0) {
+        dt <- dt[1:max(which(dt$constraint_met == TRUE)),]
       } else {
-        pnodes <- NA
+        dt <- NA
       }
     }
   }
   
-  return(pnodes)
+  return(dt)
 }
 
 #.....................................................................

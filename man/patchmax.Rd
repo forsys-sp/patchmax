@@ -35,6 +35,8 @@ pm$plot()
 
 \item{\code{patch_stats}}{Get list of recorded patches}
 
+\item{\code{patch_count}}{Get list of recorded patches}
+
 \item{\code{id_field}}{Get/set stand ID field}
 
 \item{\code{objective_field}}{Get/set objective field}

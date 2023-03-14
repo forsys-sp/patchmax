@@ -18,6 +18,7 @@
 #' @import sf
 #' @import furrr
 #' @import assertive
+#' @import data.table
 #' @importFrom future plan multisession
 #' @importFrom igraph V V<- vertex_attr graph_from_data_frame edge_attr<- vertex_attr<- delete_vertices E
 #'
@@ -602,7 +603,7 @@ patchmax <- R6::R6Class(
       private$..record_patch_stats
     },
     
-    #' @field patch_stats_2 Get list of recorded patches
+    #' @field patch_count Get list of recorded patches
     patch_count = function(){
       ps <- private$..record_patch_stats
       cnt <- ifelse(is.null(ps), 0, nrow(ps))
