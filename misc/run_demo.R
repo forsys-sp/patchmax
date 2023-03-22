@@ -4,6 +4,7 @@ library(sf)
 library(future)
 library(ggplot2)
 library(tidyr)
+library(data.table)
 
 # load stand geometry
 shp <- patchmax::test_forest %>% 
