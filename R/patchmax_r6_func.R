@@ -132,8 +132,8 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
 #' Build patch of specified size while minimizing modified distance costs
 #'
 #' @param seed character. Node id to start building patch
-#' @param cpp_graph graph object built with cppRouting
-#' @param net igraph Adjacency network with stand attributes
+#' @param edges graph object built with cppRouting
+#' @param nodes data.table Stand data table to evaluate
 #' @param a_max numeric. Maximum size of patch
 #' @param a_min numeric. Minimum size of patch
 #' @param c_max numeric. Maximum secondary constraint of patch
@@ -144,8 +144,8 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
 
 build_func <- function(
     seed, 
-    cpp_graph, 
-    net, 
+    edges,
+    nodes,
     a_max, 
     a_min=-Inf, 
     c_max=Inf, 
@@ -153,19 +153,10 @@ build_func <- function(
     c_enforce=TRUE
   ) {
   
-  # calculate distance matrix using Dijkstra's algorithm
-  dmat <- get_distance_matrix(cpp_graph, seed, cpp_graph$dict$ref)[1,]
+  dt <- nodes
   
-  # sort nodes by distance
-  i = match(cpp_graph$dict$ref, V(net)$name)
-  dt <- data.table(
-    node = names(dmat), 
-    dist = dmat, 
-    area = vertex_attr(net, '..area', i), 
-    include = vertex_attr(net, '..include', i),
-    objective = vertex_attr(net, '..objective', i), 
-    constraint_met = TRUE,
-    row.names = NULL) 
+  # calculate distance matrix using Dijkstra's algorithm
+  dt$dist <- get_distance_matrix(edges, seed, edges$dict$ref)[1,]
   
   # sort nodes by distance
   dt <- dt[order(dist)
@@ -180,11 +171,8 @@ build_func <- function(
   )]
   
   # evaluate secondary constraint if present
-  const <- vertex_attr(net, '..constraint')
-  if (!is.null(const)){
-    c_v <- const[match(dt$node, V(net)$name)]
-    dt <- dt[,constraint := c_v
-    ][,constraint_cs := cumsum(c_v * include)
+  # if (!is.null(const)){
+    dt <- dt[,constraint_cs := cumsum(constraint * include)
     ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)]
     if (c_enforce){
       if (sum(dt$constraint_met) > 0) {
@@ -193,7 +181,7 @@ build_func <- function(
         dt <- NA
       }
     }
-  }
+  # }
   
   return(dt)
 }
@@ -267,6 +255,17 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
       nodes = V(net)$name
     }
     
+    # create data  table 
+    i = match(cpp_graph$dict$ref, V(net)$name)
+    dt <- data.table(
+      node = names(dmat), 
+      dist = dmat, 
+      area = vertex_attr(net, '..area', i), 
+      include = vertex_attr(net, '..include', i),
+      objective = vertex_attr(net, '..objective', i), 
+      constraint_met = TRUE,
+      row.names = NULL) 
+    
     # calculate objective score for all potential patches
     search_out <- nodes %>% future_map_dbl(function(i) {
       
@@ -275,7 +274,7 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
       tryCatch({
         
         # build patch at node i
-        patch <- build_func(i, cpp_graph, net, a_max, a_min, c_max, c_min)
+        patch <- build_func(i, cpp_graph, dt, a_max, a_min, c_max, c_min)
         
         # calculate thershold exclusion limit
         t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)

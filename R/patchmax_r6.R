@@ -82,6 +82,7 @@ patchmax <- R6::R6Class(
     #' 
     build = function(node=NULL){
       
+      browser()
       if(is.null(node)){
         node <- private$..pending_seed
       }
@@ -96,8 +97,8 @@ patchmax <- R6::R6Class(
       
       patch <- build_func(
         seed = node, 
-        cpp_graph = private$..update_edgelist(), 
-        net = private$..update_net(),
+        edges = private$..update_edgelist(), 
+        nodes = private$..update_dt(),
         a_max = private$..param_area_max,
         a_min = private$..param_area_min,
         c_max = private$..param_constraint_max,
@@ -147,7 +148,7 @@ patchmax <- R6::R6Class(
       message(glue::glue('Searching {round(sum(x)/length(x) * 100)}% of stands...'))
       
       search_out <- search_func(
-        cpp_graph = private$..update_edgelist(), 
+        cpp_graph = private$..update_edgelist(),
         net = private$..update_net(), 
         nodes = nodes,
         objective_field = private$..param_objective_field, 
@@ -450,6 +451,7 @@ patchmax <- R6::R6Class(
     ..net = NULL,
     ..geom = NULL,
     ..cpp_graph = NULL,
+    ..dt = NULL,
     ..param_id_field = NULL,
     ..param_objective_field = NULL,
     ..param_area_field = NULL,
@@ -479,6 +481,7 @@ patchmax <- R6::R6Class(
         objective_field = '..objective',
         sdw = private$..param_sdw, 
         epw = private$..param_epw)
+      private$..cpp_graph <- dst
       return(dst)
     },
     
@@ -489,6 +492,29 @@ patchmax <- R6::R6Class(
       return(net)
     },
 
+    #' Update stand data table template
+    ..update_dt = function(){
+      
+      cpp_graph <- private$..update_edgelist()
+      
+      net <- private$..net
+      net <- delete_vertices(net, V(net)$..patch_id > 0)
+      
+      # sort nodes by distance
+      i = match(cpp_graph$dict$ref, V(net)$name)
+      dt <- data.table(
+        node = cpp_graph$dict$ref, 
+        dist = NA, 
+        area = vertex_attr(net, '..area', i), 
+        include = vertex_attr(net, '..include', i),
+        objective = vertex_attr(net, '..objective', i), 
+        constraint = vertex_attr(net, '..constraint', i),
+        constraint_met = TRUE,
+        row.names = NULL) 
+      
+      return(dt)
+    },
+    
     # check that required fields are provided
     ..check_req_fields = function(){
       if(is.null(private$..param_id_field))
