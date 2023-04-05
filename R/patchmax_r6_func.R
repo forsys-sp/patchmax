@@ -123,8 +123,8 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
   # (increase distance to excluded areas by factor of X)
   el$dist_adj <- el$dist_adj * ifelse(el$exclude, 10^epw, 1)
 
-  cpp_graph <- makegraph(el[,c('from','to','dist_adj')])
-  return(cpp_graph)
+  edge_dat <- makegraph(el[,c('from','to','dist_adj')])
+  return(edge_dat)
 }
 
 #.....................................................................
@@ -132,8 +132,8 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
 #' Build patch of specified size while minimizing modified distance costs
 #'
 #' @param seed character. Node id to start building patch
-#' @param edges graph object built with cppRouting
-#' @param nodes data.table Stand data table to evaluate
+#' @param edge_dat graph object built with cppRouting
+#' @param node_dat data.table Stand data table to evaluate
 #' @param a_max numeric. Maximum size of patch
 #' @param a_min numeric. Minimum size of patch
 #' @param c_max numeric. Maximum secondary constraint of patch
@@ -144,19 +144,20 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
 
 build_func <- function(
     seed, 
-    edges,
-    nodes,
+    edge_dat,
+    node_dat,
     a_max, 
-    a_min=-Inf, 
-    c_max=Inf, 
-    c_min=-Inf, 
-    c_enforce=TRUE
+    a_min = -Inf, 
+    c_max = Inf, 
+    c_min = -Inf, 
+    c_enforce = TRUE
   ) {
   
-  dt <- nodes
+  dt <- node_dat
   
+  browser()
   # calculate distance matrix using Dijkstra's algorithm
-  dt$dist <- get_distance_matrix(edges, seed, edges$dict$ref)[1,]
+  dt$dist <- get_distance_matrix(edge_dat, seed, edge_dat$dict$ref)[1,]
   
   # sort nodes by distance
   dt <- dt[order(dist)
@@ -166,53 +167,19 @@ build_func <- function(
   ][,objective_cs := cumsum(objective * threshold_met)]
   
   # select stands up to max patch size
-  dt <- dt[1:which.min(
-    ifelse(a_max - area_cs < 0, NA, a_max - area_cs)
-  )]
-  
+  dt <- dt[1:which.min(abs(a_max - area_cs)),]
+
   # evaluate secondary constraint if present
-  # if (!is.null(const)){
-    dt <- dt[,constraint_cs := cumsum(constraint * include)
-    ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)]
-    if (c_enforce){
-      if (sum(dt$constraint_met) > 0) {
-        dt <- dt[1:max(which(dt$constraint_met == TRUE)),]
-      } else {
-        dt <- NA
-      }
-    }
-  # }
+  dt <- dt[,constraint_cs := cumsum(constraint * include)
+  ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)]
   
-  return(dt)
-}
-
-#.....................................................................
-
-#' Samples stands on regular spatial grid
-#'
-#' @param geom sf. Stand geometry
-#' @param sample_frac numeric. Fraction of stands to evaluate
-#' @param spatial_grid logical. Sample at regular spatial intervals?
-#' 
-#' @importFrom sf st_sample st_join
-
-sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_seed = NULL){
-  
-  # sample fraction of total nodes
-  if(sample_frac == 1){
-    nodes = pull(geom, id_field)
-  } else if(sample_frac > 0 & sample_frac < 1){
-    sample_n = round(nrow(geom) * sample_frac)
-    # sample using regular spatial grid or as a simple random sample
-    if(spatial_grid){
-      set.seed(rng_seed)
-      pt_grd = st_sample(geom, size = sample_n, type = 'regular')
-      nodes <- st_join(st_as_sf(pt_grd), geom) %>% pull(id_field)
-    } else {
-      nodes = geom[sort(sample(1:nrow(geom), sample_n)),] %>% pull(id_field)
-    }
+  if (sum(dt$constraint_met) > 0) {
+      dt <- dt[1:max(which(dt$constraint_met == TRUE)),]
+  } else {
+      dt <- NA
   }
-  return(nodes)
+    
+  return(dt)
 }
 
 #.....................................................................
@@ -220,7 +187,8 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
 #' Evaluate objective score for all or fraction of patch stand seeds
 #'
 #' @param net igraph graph object
-#' @param cpp_graph cpp graph object
+#' @param edge_dat cpp graph object
+#' @param node_dat data.table node list
 #' @param nodes which nodes to evaluate as potential patches
 #' @param objective_field name of field containing objective values
 #' @param a_max maxmimum patch size
@@ -238,7 +206,8 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
 
   search_func <- function(
     net, 
-    cpp_graph, 
+    edge_dat,
+    node_dat,
     nodes = NULL, 
     objective_field, 
     a_max, 
@@ -254,18 +223,8 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
     if(is.null(nodes)){
       nodes = V(net)$name
     }
-    
-    # create data  table 
-    i = match(cpp_graph$dict$ref, V(net)$name)
-    dt <- data.table(
-      node = names(dmat), 
-      dist = dmat, 
-      area = vertex_attr(net, '..area', i), 
-      include = vertex_attr(net, '..include', i),
-      objective = vertex_attr(net, '..objective', i), 
-      constraint_met = TRUE,
-      row.names = NULL) 
-    
+
+    browser()
     # calculate objective score for all potential patches
     search_out <- nodes %>% future_map_dbl(function(i) {
       
@@ -274,7 +233,7 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
       tryCatch({
         
         # build patch at node i
-        patch <- build_func(i, cpp_graph, dt, a_max, a_min, c_max, c_min)
+        patch <- build_func(i, edge_dat, node_dat, a_max, a_min, c_max, c_min)
         
         # calculate thershold exclusion limit
         t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
@@ -312,6 +271,36 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
     return(search_out)
 }
 
+  #.....................................................................
+  
+  #' Samples stands on regular spatial grid
+  #'
+  #' @param geom sf. Stand geometry
+  #' @param sample_frac numeric. Fraction of stands to evaluate
+  #' @param spatial_grid logical. Sample at regular spatial intervals?
+  #' 
+  #' @importFrom sf st_sample st_join
+  
+  sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_seed = NULL){
+    
+    # sample fraction of total nodes
+    if(sample_frac == 1){
+      nodes = pull(geom, id_field)
+    } else if(sample_frac > 0 & sample_frac < 1){
+      sample_n = round(nrow(geom) * sample_frac)
+      # sample using regular spatial grid or as a simple random sample
+      if(spatial_grid){
+        set.seed(rng_seed)
+        pt_grd = st_sample(geom, size = sample_n, type = 'regular')
+        nodes <- st_join(st_as_sf(pt_grd), geom) %>% pull(id_field)
+      } else {
+        nodes = geom[sort(sample(1:nrow(geom), sample_n)),] %>% pull(id_field)
+      }
+    }
+    return(nodes)
+  }
+
+#.....................................................................
   
 #' Helper for reporting patch statistics in build function
 #'
@@ -348,6 +337,8 @@ range01 <- function(x){
   (x-min(x))/(max(x)-min(x))
 }
 
+#.....................................................................
+
 #' Helper function to calculate rook adjacency in geometry
 #'
 #' @param geom sf-class geometry
@@ -357,6 +348,8 @@ range01 <- function(x){
 st_rook = function(geom){
   st_relate(geom, geom, pattern = "F***1****")
 }
+
+#.....................................................................
 
 #' Helper function to calculate queen adjacency in geometry
 #'

@@ -6,30 +6,39 @@ library(ggplot2)
 library(tidyr)
 library(data.table)
 
+range01 <- function(x){
+  (x-min(x))/(max(x)-min(x))
+}
+
 # load stand geometry
 shp <- patchmax::test_forest %>% 
   filter(row > 25, row <= 45, col > 25, col <= 45) %>%
-  mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
+  mutate(cost = ((p2 + p4 - c1) * 1000) + 3000) |>
+  mutate(p5 = range01(p1 + p2 + p4 + cost))
 
 # display stand attributes
-shp %>%
-  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]|cost')) %>%
-  plot(max.plot = 20, border=NA)
+# shp %>%
+#   select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]|cost')) %>%
+#   plot(max.plot = 20, border=NA)
 
 # create new patchmax object
 pm <- patchmax$new(
   geom = shp, 
   id_field = 'id', 
-  objective_field = 'p4', 
+  objective_field = 'p5', 
   area_field = 'ha', 
-  area_max = 1000, 
-  area_min = 500)
+  area_max = 1000,
+  sdw = 1)
 
 # plot priority
 pm$plot()
 
+pm$search(show_progress = T)
+
+pm$build(2732)$record()
+
 # search, build, record, and plot best patch
-pm$search()$build()$record()$plot()
+pm$search(show_progress = T)$build()$record()$plot()
 
 # plot search results
 pm$reset()$search(T)

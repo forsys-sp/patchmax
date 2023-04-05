@@ -11,7 +11,7 @@ pm <- patchmax$new(
   objective_field = 'Am4RevBio',
   area_field = 'Acres',
   area_max = 10000, 
-  area_min = 9000,
+  # area_min = 9000,
   sdw=1, 
   epw=1, 
   # threshold = 'Am4RevBio > 1000',
