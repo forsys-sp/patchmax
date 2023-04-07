@@ -93,7 +93,7 @@ simulate_projects <- function(
     
     # break search if kill switch triggered
     if(pm$kill_switch == TRUE){
-      message('Kill switch triggered')
+      message('Search stopped by kill switch')
       break
     }
     
