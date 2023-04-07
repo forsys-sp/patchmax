@@ -162,7 +162,7 @@ build_func <- function(
   
   # sort nodes by distance
   i = match(cpp_graph$dict$ref, V(net)$name)
-  dt <- data.tabe::data.table(
+  dt <- data.table::data.table(
     node = names(dmat), 
     dist = dmat, 
     area = vertex_attr(net, '..area', i), 
