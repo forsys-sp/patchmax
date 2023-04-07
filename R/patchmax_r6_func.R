@@ -99,6 +99,10 @@ threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
 
 adjust_distances <- function(net, objective_field, sdw=0, epw=0){
   
+  if(igraph::gsize(net) == 0){
+    return(cpp_graph = NULL)
+  }
+  
   # extract adjacency network edge list
   el <- as_edgelist(net, names=T) %>% 
     as.data.frame() %>% 
@@ -158,7 +162,7 @@ build_func <- function(
   
   # sort nodes by distance
   i = match(cpp_graph$dict$ref, V(net)$name)
-  dt <- data.table(
+  dt <- data.tabe::data.table(
     node = names(dmat), 
     dist = dmat, 
     area = vertex_attr(net, '..area', i), 
@@ -302,9 +306,9 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
     # label search output with unit IDs
     names(search_out) <- nodes
     
-    if(sum(!is.na(search_out)) == 0){
-      message('No patches possible')
-    }
+    # if(sum(!is.na(search_out)) == 0){
+    #   message('No patches possible')
+    # }
     
     if(return_all == FALSE){
       search_out <- search_out[which.max(search_out)]

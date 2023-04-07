@@ -18,7 +18,7 @@
 #' @import sf
 #' @import furrr
 #' @import assertive
-#' @import data.table
+#' @importFrom data.table data.table
 #' @importFrom future plan multisession
 #' @importFrom igraph V V<- vertex_attr graph_from_data_frame edge_attr<- vertex_attr<- delete_vertices E
 #'
@@ -86,6 +86,7 @@ patchmax <- R6::R6Class(
         node <- private$..pending_seed
       }
       
+      # early exist and kill switch
       if(length(node)==0){
         message('Cancelling build and flagging stop')
         private$..kill_switch = TRUE
@@ -141,6 +142,7 @@ patchmax <- R6::R6Class(
         return_all = TRUE
       }
       
+      # seed nodes to search
       x <- V(private$..net)$..sample
       nodes <- V(private$..net)$name[x == 1]
       
@@ -164,39 +166,10 @@ patchmax <- R6::R6Class(
       message(glue::glue('Best seed: {best_out}'))
       private$..pending_seed <- best_out
       
-      # >>>>> Debugging: plot search results  <<<<<<<<
       if(search_plot){
-
-        search_dat <- data.frame(
-            names(search_out), 
-            search_out = as.numeric(search_out)
-          ) %>%
-          rename(!!private$..param_id_field := 1)
-        
-        pdat <- dplyr::inner_join(
-          x = private$..geom, 
-          y = search_dat, 
-          by=private$..param_id_field)
-        
-        # identify best seed
-        seed <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
-        
-        # build best patch
-        self$build(best_out)
-        patch_geom <- self$geom %>% 
-          filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
-          summarize()
-        p1 <- ggplot() + 
-          geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
-          geom_sf(data=suppressWarnings(st_centroid(seed)), size=4, shape=5) +
-          scale_fill_gradientn(colors = sf.colors(10)) +
-          theme(legend.position = 'bottom') +
-          theme_void() + 
-          geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
-        print(p1)
+        private$..search_plot(best_out)
       }
-      # >>>>> End plot search results <<<<<<<<
-      
+
       if(return_all){
         x = private$..geom
         index = match(names(search_out), dplyr::pull(x,private$..param_id_field))
@@ -475,7 +448,7 @@ patchmax <- R6::R6Class(
     #' Update edgelist distances
     ..update_edgelist = function(){
       dst <- adjust_distances(
-        net = delete_vertices(private$..net, V(private$..net)$..patch_id > 0),
+        net = private$..update_net(),
         objective_field = '..objective',
         sdw = private$..param_sdw, 
         epw = private$..param_epw)
@@ -486,6 +459,9 @@ patchmax <- R6::R6Class(
     ..update_net = function(){
       net <- private$..net
       net <- delete_vertices(net, V(net)$..patch_id > 0)
+      if(igraph::gsize(net) == 0){
+        browser()
+      }
       return(net)
     },
 
@@ -526,6 +502,40 @@ patchmax <- R6::R6Class(
         V(private$..net)$..include = ifelse(all_ids %in% include_ids, 1, 0)
       } else
         V(private$..net)$..include = 1
+    },
+    
+    # plot useful seeing search results
+    ...search_plot = function(search_out){
+      
+      search_dat <- data.frame(
+        names(search_out), 
+        search_out = as.numeric(search_out)
+      ) %>%
+        rename(!!private$..param_id_field := 1)
+      
+      pdat <- dplyr::inner_join(
+        x = private$..geom, 
+        y = search_dat, 
+        by=private$..param_id_field)
+      
+      # identify best seed
+      seed <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
+      
+      # build best patch
+      best_out = names(search_out)[which.max(search_out)]
+      self$build(best_out)
+      patch_geom <- self$geom %>% 
+        filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
+        summarize()
+      
+      p1 <- ggplot() + 
+        geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
+        geom_sf(data=suppressWarnings(st_centroid(seed)), size=4, shape=5) +
+        scale_fill_gradientn(colors = sf.colors(10)) +
+        theme(legend.position = 'bottom') +
+        theme_void() + 
+        geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
+      print(p1)
     }
   ),
 
