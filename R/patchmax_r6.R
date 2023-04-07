@@ -459,9 +459,6 @@ patchmax <- R6::R6Class(
     ..update_net = function(){
       net <- private$..net
       net <- delete_vertices(net, V(net)$..patch_id > 0)
-      if(igraph::gsize(net) == 0){
-        browser()
-      }
       return(net)
     },
 
