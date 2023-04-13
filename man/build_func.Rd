@@ -6,8 +6,8 @@
 \usage{
 build_func(
   seed,
-  cpp_graph,
-  net,
+  edge_dat,
+  node_dat,
   a_max,
   a_min = -Inf,
   c_max = Inf,
@@ -18,9 +18,9 @@ build_func(
 \arguments{
 \item{seed}{character. Node id to start building patch}
 
-\item{cpp_graph}{graph object built with cppRouting}
+\item{edge_dat}{graph object built with cppRouting}
 
-\item{net}{igraph Adjacency network with stand attributes}
+\item{node_dat}{data.table Stand data table to evaluate}
 
 \item{a_max}{numeric. Maximum size of patch}
 

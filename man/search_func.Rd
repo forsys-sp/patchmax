@@ -6,7 +6,8 @@
 \usage{
 search_func(
   net,
-  cpp_graph,
+  edge_dat,
+  node_dat,
   nodes = NULL,
   objective_field,
   a_max,
@@ -22,7 +23,9 @@ search_func(
 \arguments{
 \item{net}{igraph graph object}
 
-\item{cpp_graph}{cpp graph object}
+\item{edge_dat}{cpp graph object}
+
+\item{node_dat}{data.table node list}
 
 \item{nodes}{which nodes to evaluate as potential patches}
 
