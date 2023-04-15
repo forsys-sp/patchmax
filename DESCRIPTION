@@ -38,7 +38,7 @@ Imports:
   igraph,
   assertive,
   proxy,
-  Rcpp (>= 1.0.7), 
+  Rcpp, 
   RcppParallel
 LinkingTo: Rcpp, RcppParallel, RcppProgress
 License: GPL-3

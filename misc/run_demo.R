@@ -12,7 +12,7 @@ range01 <- function(x){
 
 # load stand geometry
 shp <- patchmax::test_forest %>% 
-  filter(row > 25, row <= 45, col > 25, col <= 45) %>%
+  # filter(row > 25, row <= 45, col > 25, col <= 45) %>%
   mutate(cost = ((p2 + p4 - c1) * 1000) + 3000) |>
   mutate(p5 = range01(p1 + p2 + p4 + cost))
 
@@ -27,13 +27,29 @@ pm <- patchmax$new(
   id_field = 'id', 
   objective_field = 'p5', 
   area_field = 'ha', 
-  area_max = 1000,
-  sdw = 1)
+  sdw = 0,
+  area_max = 2000,
+  max_search_dist = 1000)
 
 # plot priority
-pm$plot()
+# pm$plot()
 
-pm$search(show_progress = T)
+pm$reset()
+# pm$random_sample(0.25)
+plan(multisession, workers = 7)
+pm$search()$build()$record()$plot()
+
+microbenchmark(
+  {
+    pm$max_search_dist = 1000
+    pm$search(show_progress = T)$build()
+  },
+  {
+    pm$max_search_dist = Inf
+    pm$search(show_progress = T)$build()
+  },
+  times=10
+)
 
 pm$build(2732)$record()
 

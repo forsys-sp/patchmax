@@ -123,7 +123,7 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
   # (increase distance to excluded areas by factor of X)
   el$dist_adj <- el$dist_adj * ifelse(el$exclude, 10^epw, 1)
 
-  edge_dat <- makegraph(el[,c('from','to','dist_adj')])
+  edge_dat <- make_edgelist(el[,c('from','to','dist_adj')], aux = el$dist)
   return(edge_dat)
 }
 
@@ -150,35 +150,30 @@ build_func <- function(
     a_min = -Inf, 
     c_max = Inf, 
     c_min = -Inf, 
+    max_search_dist = Inf,
     c_enforce = TRUE
   ) {
   
+  microbenchmark('a' = {
   dt <- node_dat
   
-  browser()
   # calculate distance matrix using Dijkstra's algorithm
-  dt$dist <- get_distance_matrix(edge_dat, seed, edge_dat$dict$ref)[1,]
+  dt$dist <- calc_network_distance(edge_dat, seed, edge_dat$dict$ref, TRUE, max_search_dist)[1,]
   
-  # sort nodes by distance
+  # sort nodes by distance, retain stands up to max size, evaluate secondary constraint
   dt <- dt[order(dist)
   ][,threshold_met := (include == 1)
   ][,area_cs := cumsum(area * threshold_met)
   ][,area_met := (area_cs <= a_max) & (area_cs >= a_min)
-  ][,objective_cs := cumsum(objective * threshold_met)]
+  ][,objective_cs := cumsum(objective * threshold_met)
+  ][1:which.min(abs(a_max - area_cs))
+  ][!is.na(dist)
+  ][,constraint_cs := cumsum(constraint * include)
+  ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)
+  ][1:max(which(constraint_met))]
   
-  # select stands up to max patch size
-  dt <- dt[1:which.min(abs(a_max - area_cs)),]
-
-  # evaluate secondary constraint if present
-  dt <- dt[,constraint_cs := cumsum(constraint * include)
-  ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)]
+  }, times = 100)
   
-  if (sum(dt$constraint_met) > 0) {
-      dt <- dt[1:max(which(dt$constraint_met == TRUE)),]
-  } else {
-      dt <- NA
-  }
-    
   return(dt)
 }
 
@@ -212,19 +207,19 @@ build_func <- function(
     objective_field, 
     a_max, 
     a_min, 
-    c_max=Inf, 
-    c_min=-Inf,
-    t_limit=0,
-    return_all=FALSE, 
-    show_progress=FALSE,
-    print_errors=FALSE
+    c_max = Inf, 
+    c_min = -Inf,
+    t_limit = 0,
+    max_search_dist = Inf,
+    return_all = FALSE, 
+    show_progress = FALSE,
+    print_errors = FALSE
     ){
   
     if(is.null(nodes)){
       nodes = V(net)$name
     }
 
-    browser()
     # calculate objective score for all potential patches
     search_out <- nodes %>% future_map_dbl(function(i) {
       
@@ -233,20 +228,18 @@ build_func <- function(
       tryCatch({
         
         # build patch at node i
-        patch <- build_func(i, edge_dat, node_dat, a_max, a_min, c_max, c_min)
+        patch <- build_func(i, edge_dat, node_dat, a_max, a_min, c_max, c_min, max_search_dist)
         
-        # calculate thershold exclusion limit
+        # calculate threshold exclusion limit
         t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
         
         # error if neither area or secondary constraint are not met
-        if(!last(patch$area_met) | !last(patch$constraint_met)){
+        if(!last(patch$area_met) | !last(patch$constraint_met))
           stop(paste0('Constaint(s) not met @', i))
-        }
         
         # error if exclusion rate greater than exclusion limit
-        if(t_sum <= (1 - t_limit)){
+        if(t_sum <= (1 - t_limit))
           stop(paste0('Threshold limit exceeded @', i))
-        }
         
         proj_obj = last(patch$objective_cs)
         return(proj_obj)

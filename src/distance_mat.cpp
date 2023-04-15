@@ -65,19 +65,8 @@ void distanceMat::dijkstra_mat(std::size_t begin, std::size_t end){
     }
 
     for (int i = 0; i != m_arr.size(); i++){
-      if (add){
-        m_result(k,i) = distances2[m_arr[i]];
-      } else{
-        m_result(k,i) = distances[m_arr[i]];
-      }
+      m_result(k,i) = distances[m_arr[i]];
     }
-
-    // 1. order by distance
-    // 2. accumulate area until maximum
-    // 3. accumulate 2nd constraint
-    // 4. remove stands where 2nd constraint exceeded
-    // 5. confirm project area still above minimum
-    // 6. sum objective
     
     //Reinitialize
     fill(distances.begin(),distances.end(),numeric_limits<double>::max());

@@ -18,9 +18,11 @@
 #' @import sf
 #' @import furrr
 #' @import assertive
-#' @import data.table
+#' @rawNamespace import(data.table, except = c("last","first","between"))
+#' @importFrom Rcpp sourceCpp
 #' @importFrom future plan multisession
 #' @importFrom igraph V V<- vertex_attr graph_from_data_frame edge_attr<- vertex_attr<- delete_vertices E
+#' @useDynLib patchmax
 #'
 #' @export
 
@@ -45,10 +47,10 @@ patchmax <- R6::R6Class(
     #'
     initialize = function(
       geom, 
-      id_field=NULL, 
-      objective_field=NULL, 
-      area_field=NULL, 
-      area_max=NULL,
+      id_field = NULL, 
+      objective_field = NULL, 
+      area_field = NULL, 
+      area_max = NULL,
       ...
     ){
 
@@ -93,8 +95,7 @@ patchmax <- R6::R6Class(
       }
       
       private$..check_req_fields()
-      browser()
-      
+
       patch <- build_func(
         seed = node, 
         edge_dat = private$..update_edgelist(), 
@@ -102,7 +103,8 @@ patchmax <- R6::R6Class(
         a_max = private$..param_area_max,
         a_min = private$..param_area_min,
         c_max = private$..param_constraint_max,
-        c_min = private$..param_constraint_min)
+        c_min = private$..param_constraint_min,
+        max_search_dist = private$..param_max_search_dist)
       
       # append auxiliary stand data
       aux_data <- vertex_attr(private$..net) %>% 
@@ -158,6 +160,7 @@ patchmax <- R6::R6Class(
         c_max = private$..param_constraint_max,
         c_min = private$..param_constraint_min,
         t_limit = private$..param_exclusion_limit,
+        max_search_dist = private$..param_max_search_dist,
         return_all = return_all,
         show_progress = show_progress, 
         print_errors = print_errors)
@@ -458,6 +461,7 @@ patchmax <- R6::R6Class(
     ..param_area_field = NULL,
     ..param_area_max = Inf,
     ..param_area_min = -Inf,
+    ..param_max_search_dist = Inf,
     ..param_threshold = NULL,
     ..param_threshold_area_adjust = 0,
     ..param_threshold_objective_adjust = 0,
@@ -505,7 +509,7 @@ patchmax <- R6::R6Class(
       
       # create node table
       i = match(cpp_graph$dict$ref, V(net)$name)
-      node_dt <- data.table(
+      node_dt <- data.table::data.table(
         node = cpp_graph$dict$ref, 
         dist = NA, 
         area = vertex_attr(net, '..area', i), 
@@ -776,6 +780,19 @@ patchmax <- R6::R6Class(
         assertive::is_of_length(value, 1)
         assertive::is_in_range(value, 0, 1, FALSE, FALSE)
         private$..param_area_min <- value
+        private$..refresh_net_attr()
+      }
+    },
+    
+    #' @field max_search_dist Get/set maximum search distance
+    max_search_dist = function(value){
+      if(missing(value)){
+        private$..param_max_search_dist
+      } else {
+        assertive::assert_is_numeric(value)
+        assertive::is_of_length(value, 1)
+        assertive::is_in_range(value, 0, Inf, FALSE, FALSE)
+        private$..param_max_search_dist <- value
         private$..refresh_net_attr()
       }
     },

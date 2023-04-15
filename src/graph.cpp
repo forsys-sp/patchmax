@@ -119,5 +119,12 @@ Rcpp::NumericMatrix Graph::routing_dmat(IVec dep, IVec arr, double max_aux){
   Rcpp::NumericMatrix result(dep.size(), arr.size());
   distanceMat dijfunc(this, dep, arr, max_aux, result);
   parallelFor(0, dep.size(), dijfunc, 1, 12);
+  
+  // 1. order by distance
+  // 2. accumulate area until maximum
+  // 3. accumulate 2nd constraint
+  // 4. remove stands where 2nd constraint exceeded
+  // 5. confirm project area still above minimum
+  // 6. sum objective
   return result;
 }

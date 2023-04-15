@@ -30,21 +30,47 @@ calc_network_distance <- function(edgelist, from, to, aggregate_aux = FALSE, max
   if (aggregate_aux & length(edgelist$attrib$aux) == 0) stop("network don't have additional weight")
   
   if (length(from) < length(to)){
-    
     if (aggregate_aux){
-      res <- cpppadd(edgelist$data[,1], edgelist$data[,2], edgelist$data[,3], edgelist$attrib$aux, edgelist$nbnode, from_id, to_id, max_aux)
+      res <- cpppadd(
+        edgelist$data[,1], 
+        edgelist$data[,2], 
+        edgelist$data[,3], 
+        edgelist$attrib$aux, 
+        edgelist$nbnode, 
+        from_id, 
+        to_id, 
+        max_aux)
     } else{
-      res <- cppdistmat(edgelist$data[,1], edgelist$data[,2], edgelist$data[,3], edgelist$nbnode, from_id, to_id, max_aux)
+      res <- cppdistmat(
+        edgelist$data[,1], 
+        edgelist$data[,2], 
+        edgelist$data[,3], 
+        edgelist$nbnode, 
+        from_id, 
+        to_id, 
+        max_aux)
     }
-    
   } else {
-    
     if (aggregate_aux){
-      res <- cpppadd(edgelist$data[,2], edgelist$data[,1], edgelist$data[,3], edgelist$attrib$aux, edgelist$nbnode, to_id, from_id, max_aux)
+      res <- cpppadd(
+        edgelist$data[,2],
+        edgelist$data[,1], 
+        edgelist$data[,3],
+        edgelist$attrib$aux, 
+        edgelist$nbnode, 
+        to_id, 
+        from_id,
+        max_aux)
     } else{
-      res <- cppdistmat(edgelist$data[,2], edgelist$data[,1], edgelist$data[,3], edgelist$nbnode, to_id, from_id, max_aux)
+      res <- cppdistmat(
+        edgelist$data[,2], 
+        edgelist$data[,1], 
+        edgelist$data[,3], 
+        edgelist$nbnode, 
+        to_id, 
+        from_id, 
+        max_aux)
     }
-    
   }
 
   if (!(length(from)< length(to))) res<-t(res)
