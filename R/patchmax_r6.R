@@ -445,6 +445,13 @@ patchmax <- R6::R6Class(
     ..record_patch_stats = NULL,
     ..kill_switch = FALSE,
 
+    #' Update network adjacency network object
+    ..update_net = function(){
+      net <- private$..net
+      net <- delete_vertices(net, V(net)$..patch_id > 0)
+      return(net)
+    },
+    
     #' Update edgelist distances
     ..update_edgelist = function(){
       dst <- adjust_distances(
@@ -454,14 +461,32 @@ patchmax <- R6::R6Class(
         epw = private$..param_epw)
       return(dst)
     },
-    
-    #' Update network adjacency network object
-    ..update_net = function(){
+
+    #' Update stand data table template
+    ..update_nodelist = function(){
+      
+      # pull edge list
+      cpp_graph <- private$..update_edgelist()
+      
+      # pull network and delete selected stands
       net <- private$..net
       net <- delete_vertices(net, V(net)$..patch_id > 0)
-      return(net)
+      
+      # create node table
+      i = match(cpp_graph$dict$ref, V(net)$name)
+      node_dt <- data.table::data.table(
+        node = cpp_graph$dict$ref, 
+        dist = NA, 
+        area = vertex_attr(net, '..area', i), 
+        include = vertex_attr(net, '..include', i),
+        objective = vertex_attr(net, '..objective', i), 
+        constraint = vertex_attr(net, '..constraint', i),
+        constraint_met = TRUE,
+        row.names = NULL) 
+      
+      return(node_dt)
     },
-
+    
     # check that required fields are provided
     ..check_req_fields = function(){
       if(is.null(private$..param_id_field))

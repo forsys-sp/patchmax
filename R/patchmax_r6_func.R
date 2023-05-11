@@ -168,8 +168,21 @@ build_func <- function(
     area = vertex_attr(net, '..area', i), 
     include = vertex_attr(net, '..include', i),
     objective = vertex_attr(net, '..objective', i), 
+    constraint = vertex_attr(net, '..constraint', i),
     constraint_met = TRUE,
     row.names = NULL) 
+  
+  # sort nodes by distance, retain stands up to max size, evaluate secondary constraint
+  dt <- dt[order(dist)
+  ][,threshold_met := (include == 1)
+  ][,area_cs := cumsum(area * threshold_met)
+  ][,area_met := (area_cs <= a_max) & (area_cs >= a_min)
+  ][,objective_cs := cumsum(objective * threshold_met)
+  ][1:which.min(abs(a_max - area_cs))
+  ][!is.na(dist)
+  ][,constraint_cs := cumsum(constraint * include)
+  ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)
+  ][1:max(which(constraint_met))]
   
   # sort nodes by distance
   dt <- dt[order(dist)
@@ -350,7 +363,11 @@ calc_patch_stats <- function(patch, verbose = TRUE){
 #' @param x number or vector to normalize
 
 range01 <- function(x){
-  (x-min(x))/(max(x)-min(x))
+  if(min(x) == max(x)){
+    rep(0.5, length(x))
+  } else {
+    (x-min(x))/(max(x)-min(x))
+  }
 }
 
 #' Helper function to calculate rook adjacency in geometry
