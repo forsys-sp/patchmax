@@ -159,15 +159,13 @@ distance_func <- function(
     setNames(c('from','to'))
   el$dist <- E(net)$dist
   
+  # ?? distance modification based on target only give directed network ?? 
+  
   # calculate average objective score for each dyad
-  a <- vertex_attr(net, '..objective', match(el$from, V(net)$name)) 
-  b <- vertex_attr(net, '..objective', match(el$to, V(net)$name)) 
-  el$objective = range01((a + b)/2)
+  el$objective <- vertex_attr(net, '..objective', match(el$to, V(net)$name)) %>% range01()
   
   # calculate exclude penalty score for each dyad
-  a <- vertex_attr(net, '..include', match(el$from, V(net)$name)) 
-  b <- vertex_attr(net, '..include', match(el$to, V(net)$name)) 
-  el$exclude = ifelse(a | b, 0, 1)
+  el$exclude <- vertex_attr(net, '..include', match(el$to, V(net)$name)) %>% range01()
   
   # modify distance based on objective 
   # (increase distance to lower objectives by factor of X)

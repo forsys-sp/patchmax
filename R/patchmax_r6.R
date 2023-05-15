@@ -124,9 +124,6 @@ patchmax <- R6::R6Class(
     #' @param show_progress logical Show search progress bar
     #' @param search_plot logical Map search results
     #' @param print_errors logical Print search errors to console
-    #' 
-    #' @details By default, `set_search_seeds` is NULL. If specified, `sample_frac` is
-    #'   overwritten and only the specified stand IDs are used to in the search.
     #'   
     search = function(
       search_plot = FALSE, 
@@ -156,14 +153,15 @@ patchmax <- R6::R6Class(
         show_progress = show_progress, 
         print_errors = print_errors)
       
+      # plot search results if desired
+      if(search_plot){
+        private$..search_plot(search_out)
+      }
+      
       # record best patch seed
       best_out = names(search_out)[which.max(search_out)]
       message(glue::glue('Best seed: {best_out}'))
       private$..pending_seed <- best_out
-      
-      if(search_plot){
-        private$..search_plot(search_out)
-      }
       
       return(invisible(self))
     },
@@ -487,21 +485,25 @@ patchmax <- R6::R6Class(
     # update network attributes
     ..refresh_net_attr = function(){
       
+      # set objective values
       if(!is.null(private$..param_objective_field)){
         obj <- vertex_attr(private$..net, private$..param_objective_field)
         vertex_attr(private$..net, name = '..objective') <- obj
       }
       
+      # set area values
       if(!is.null(private$..param_area_field)){
         vertex_attr(private$..net, name = '..area') <- 
           vertex_attr(private$..net, private$..param_area_field)
       }
       
+      # set constraint values
       if(!is.null(private$..param_constraint_field)){
         vertex_attr(private$..net, name = '..constraint') <- 
           vertex_attr(private$..net, private$..param_constraint_field)
       }
       
+      # set threshold values
       if(!is.null(private$..param_threshold)){
         net <- private$..net
         s_txt = private$..param_threshold
