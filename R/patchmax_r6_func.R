@@ -10,7 +10,11 @@
 #' @importFrom sf st_buffer st_overlaps st_centroid st_coordinates
 #' @return adjacency network saved as an igraph network object
 
-create_network <- function(geom, id_field, method = 'queen') {
+create_network <- function(
+    geom, 
+    id_field, 
+    method = 'queen'
+  ) {
   
   id = pull(geom, id_field)
   
@@ -58,13 +62,49 @@ create_network <- function(geom, id_field, method = 'queen') {
   return(net)
 }
 
+
+#.....................................................................
+
+#' Samples stands on regular spatial grid
+#'
+#' @param geom sf. Stand geometry
+#' @param sample_frac numeric. Fraction of stands to evaluate
+#' @param spatial_grid logical. Sample at regular spatial intervals?
+#' 
+#' @importFrom sf st_sample st_join
+
+sample_func <- function(
+    geom, 
+    sample_frac, 
+    id_field, 
+    spatial_grid = TRUE, 
+    rng_seed = NULL
+) {
+  
+  # sample fraction of total nodes
+  if(sample_frac == 1){
+    nodes = pull(geom, id_field)
+  } else if(sample_frac > 0 & sample_frac < 1){
+    sample_n = round(nrow(geom) * sample_frac)
+    # sample using regular spatial grid or as a simple random sample
+    if(spatial_grid){
+      set.seed(rng_seed)
+      pt_grd = st_sample(geom, size = sample_n, type = 'regular')
+      nodes <- st_join(st_as_sf(pt_grd), geom) %>% pull(id_field)
+    } else {
+      nodes = geom[sort(sample(1:nrow(geom), sample_n)),] %>% pull(id_field)
+    }
+  }
+  return(nodes)
+}
+
 #.....................................................................
 
 #' Set threshold for patch inclusion
 #'
 #' @param net igraph adjacency network
 #' @param include logical vector of same length as the count of network nodes
-#' @param area_adjust value 0-1 represent area 'cost' of excluded stands
+#' @param area_fadjust value 0-1 represent area 'cost' of excluded stands
 #' @param objective_adjust value 0-1, percent contribution of excluded stands
 #'   to patch score
 #' @details By default, excluded stands don't count towards the total project
@@ -74,7 +114,12 @@ create_network <- function(geom, id_field, method = 'queen') {
 #' @return igraph adjacency network
 #' @importFrom igraph V
 
-threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
+threshold_func <- function(
+    net, 
+    include, 
+    area_adjust = 0, 
+    objective_adjust = 0
+  ) {
   
   V(net)$..objective[!include] <- V(net)$..objective[!include] * objective_adjust
   V(net)$area[!include] <- V(net)$area[!include] * area_adjust
@@ -97,7 +142,12 @@ threshold_func <- function(net, include, area_adjust = 0, objective_adjust = 0){
 #' @importFrom igraph as_edgelist
 #' @return cpp graph object
 
-adjust_distances <- function(net, objective_field, sdw=0, epw=0){
+distance_func <- function(
+    net, 
+    objective_field, 
+    sdw = 0, 
+    epw = 0
+  ) {
   
   if(igraph::gsize(net) == 0){
     return(cpp_graph = NULL)
@@ -148,8 +198,8 @@ adjust_distances <- function(net, objective_field, sdw=0, epw=0){
 
 build_func <- function(
     seed, 
-    cpp_graph, 
-    net, 
+    edge_dat,
+    node_dat,
     a_max, 
     a_min=-Inf, 
     c_max=Inf, 
@@ -157,20 +207,11 @@ build_func <- function(
     c_enforce=TRUE
   ) {
   
-  # calculate distance matrix using Dijkstra's algorithm
-  dmat <- get_distance_matrix(cpp_graph, seed, cpp_graph$dict$ref)[1,]
+  dt <- node_dat
   
-  # sort nodes by distance
-  i = match(cpp_graph$dict$ref, V(net)$name)
-  dt <- data.table::data.table(
-    node = names(dmat), 
-    dist = dmat, 
-    area = vertex_attr(net, '..area', i), 
-    include = vertex_attr(net, '..include', i),
-    objective = vertex_attr(net, '..objective', i), 
-    constraint = vertex_attr(net, '..constraint', i),
-    constraint_met = TRUE,
-    row.names = NULL) 
+  # calculate distance matrix using Dijkstra's algorithm
+  dt$dist <- get_distance_matrix(edge_dat, seed, edge_dat$dict$ref)[1,]
+  # dt$dist <- calc_network_distance(edge_dat, seed, edge_dat$dict$ref, TRUE, max_search_dist)[1,]
   
   # sort nodes by distance, retain stands up to max size, evaluate secondary constraint
   dt <- dt[order(dist)
@@ -184,64 +225,7 @@ build_func <- function(
   ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)
   ][1:max(which(constraint_met))]
   
-  # sort nodes by distance
-  dt <- dt[order(dist)
-  ][,threshold_met := (include == 1)
-  ][,area_cs := cumsum(area * threshold_met)
-  ][,area_met := (area_cs <= a_max) & (area_cs >= a_min)
-  ][,objective_cs := cumsum(objective * threshold_met)]
-  
-  # select stands up to max patch size
-  dt <- dt[1:which.min(
-    ifelse(a_max - area_cs < 0, NA, a_max - area_cs)
-  )]
-  
-  # evaluate secondary constraint if present
-  const <- vertex_attr(net, '..constraint')
-  if (!is.null(const)){
-    c_v <- const[match(dt$node, V(net)$name)]
-    dt <- dt[,constraint := c_v
-    ][,constraint_cs := cumsum(c_v * include)
-    ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)]
-    if (c_enforce){
-      if (sum(dt$constraint_met) > 0) {
-        dt <- dt[1:max(which(dt$constraint_met == TRUE)),]
-      } else {
-        dt <- NA
-      }
-    }
-  }
-  
   return(dt)
-}
-
-#.....................................................................
-
-#' Samples stands on regular spatial grid
-#'
-#' @param geom sf. Stand geometry
-#' @param sample_frac numeric. Fraction of stands to evaluate
-#' @param spatial_grid logical. Sample at regular spatial intervals?
-#' 
-#' @importFrom sf st_sample st_join
-
-sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_seed = NULL){
-  
-  # sample fraction of total nodes
-  if(sample_frac == 1){
-    nodes = pull(geom, id_field)
-  } else if(sample_frac > 0 & sample_frac < 1){
-    sample_n = round(nrow(geom) * sample_frac)
-    # sample using regular spatial grid or as a simple random sample
-    if(spatial_grid){
-      set.seed(rng_seed)
-      pt_grd = st_sample(geom, size = sample_n, type = 'regular')
-      nodes <- st_join(st_as_sf(pt_grd), geom) %>% pull(id_field)
-    } else {
-      nodes = geom[sort(sample(1:nrow(geom), sample_n)),] %>% pull(id_field)
-    }
-  }
-  return(nodes)
 }
 
 #.....................................................................
@@ -267,7 +251,8 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
 
   search_func <- function(
     net, 
-    cpp_graph, 
+    edge_dat,
+    node_dat,
     nodes = NULL, 
     objective_field, 
     a_max, 
@@ -275,7 +260,6 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
     c_max=Inf, 
     c_min=-Inf,
     t_limit=0,
-    return_all=FALSE, 
     show_progress=FALSE,
     print_errors=FALSE
     ){
@@ -292,7 +276,7 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
       tryCatch({
         
         # build patch at node i
-        patch <- build_func(i, cpp_graph, net, a_max, a_min, c_max, c_min)
+        patch <- build_func(i, edge_dat, node_dat, a_max, a_min, c_max, c_min)
         
         # calculate thershold exclusion limit
         t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
@@ -318,14 +302,6 @@ sample_frac <- function(geom, sample_frac, id_field, spatial_grid = TRUE, rng_se
 
     # label search output with unit IDs
     names(search_out) <- nodes
-    
-    # if(sum(!is.na(search_out)) == 0){
-    #   message('No patches possible')
-    # }
-    
-    if(return_all == FALSE){
-      search_out <- search_out[which.max(search_out)]
-    }
     
     return(search_out)
 }

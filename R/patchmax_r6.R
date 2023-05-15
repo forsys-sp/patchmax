@@ -97,8 +97,8 @@ patchmax <- R6::R6Class(
       
       patch <- build_func(
         seed = node, 
-        cpp_graph = private$..update_edgelist(), 
-        net = private$..update_net(),
+        edge_dat = private$..get_edgelist(), 
+        node_dat = private$..get_nodelist(),
         a_max = private$..param_area_max,
         a_min = private$..param_area_min,
         c_max = private$..param_constraint_max,
@@ -121,7 +121,6 @@ patchmax <- R6::R6Class(
     
     # ..........................................................................
     #' @description Search for patch seed with highest objective
-    #' @param return_all logical Return search results
     #' @param show_progress logical Show search progress bar
     #' @param search_plot logical Map search results
     #' @param print_errors logical Print search errors to console
@@ -131,16 +130,11 @@ patchmax <- R6::R6Class(
     #'   
     search = function(
       search_plot = FALSE, 
-      return_all = FALSE, 
       show_progress = FALSE,
       print_errors = FALSE
     ) {
       
       private$..check_req_fields()
-      
-      if(search_plot){
-        return_all = TRUE
-      }
       
       # seed nodes to search
       x <- V(private$..net)$..sample
@@ -149,8 +143,9 @@ patchmax <- R6::R6Class(
       message(glue::glue('Searching {round(sum(x)/length(x) * 100)}% of stands...'))
       
       search_out <- search_func(
-        cpp_graph = private$..update_edgelist(), 
-        net = private$..update_net(), 
+        edge_dat = private$..get_edgelist(),
+        node_dat = private$..get_nodelist(),
+        net = private$..get_net(), 
         nodes = nodes,
         objective_field = private$..param_objective_field, 
         a_max = private$..param_area_max,
@@ -158,23 +153,16 @@ patchmax <- R6::R6Class(
         c_max = private$..param_constraint_max,
         c_min = private$..param_constraint_min,
         t_limit = private$..param_exclusion_limit,
-        return_all = return_all,
         show_progress = show_progress, 
         print_errors = print_errors)
       
+      # record best patch seed
       best_out = names(search_out)[which.max(search_out)]
       message(glue::glue('Best seed: {best_out}'))
       private$..pending_seed <- best_out
       
       if(search_plot){
-        private$..search_plot(best_out)
-      }
-
-      if(return_all){
-        x = private$..geom
-        index = match(names(search_out), dplyr::pull(x,private$..param_id_field))
-        x[index,'search_score'] <- search_out
-        private$..geom = x
+        private$..search_plot(search_out)
       }
       
       return(invisible(self))
@@ -198,15 +186,15 @@ patchmax <- R6::R6Class(
     #' @param show_seed logical 
     #' @param apply_threshold logical
     #'
-    plot = function(plot_field = NULL, 
-                    return_plot = FALSE, 
-                    show_seed = FALSE,
-                    apply_threshold = FALSE
-                    ){
-      
-      plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
-      
+    plot = function(
+      plot_field = NULL, 
+      return_plot = FALSE,
+      show_seed = FALSE,
+      apply_threshold = FALSE
+    ) {
+
       # base data
+      plot_field <- ifelse(is.null(plot_field),  private$..param_objective_field, plot_field)
       geom <- private$..geom
       net <- private$..net
       
@@ -343,7 +331,7 @@ patchmax <- R6::R6Class(
 
     random_sample = function(sample_frac = 1){
       
-      sample_nodes <- sample_frac(
+      sample_nodes <- sample_func(
         geom = private$..geom, 
         sample_frac = sample_frac, 
         id_field = private$..param_id_field, 
@@ -446,16 +434,16 @@ patchmax <- R6::R6Class(
     ..kill_switch = FALSE,
 
     #' Update network adjacency network object
-    ..update_net = function(){
+    ..get_net = function(){
       net <- private$..net
       net <- delete_vertices(net, V(net)$..patch_id > 0)
       return(net)
     },
     
     #' Update edgelist distances
-    ..update_edgelist = function(){
-      dst <- adjust_distances(
-        net = private$..update_net(),
+    ..get_edgelist = function(){
+      dst <- distance_func(
+        net = private$..get_net(),
         objective_field = '..objective',
         sdw = private$..param_sdw, 
         epw = private$..param_epw)
@@ -463,14 +451,11 @@ patchmax <- R6::R6Class(
     },
 
     #' Update stand data table template
-    ..update_nodelist = function(){
+    ..get_nodelist = function(){
       
-      # pull edge list
-      cpp_graph <- private$..update_edgelist()
-      
-      # pull network and delete selected stands
-      net <- private$..net
-      net <- delete_vertices(net, V(net)$..patch_id > 0)
+      # get network and edge list
+      net <- private$..get_net()
+      cpp_graph <- private$..get_edgelist()
       
       # create node table
       i = match(cpp_graph$dict$ref, V(net)$name)
@@ -499,22 +484,24 @@ patchmax <- R6::R6Class(
         stop('area field is missing')
     },
 
-    # (re)assign objective, area, and constraints to indicated fields
+    # update network attributes
     ..refresh_net_attr = function(){
+      
       if(!is.null(private$..param_objective_field)){
         obj <- vertex_attr(private$..net, private$..param_objective_field)
         vertex_attr(private$..net, name = '..objective') <- obj
-        # area <- vertex_attr(private$..net, private$..param_area_field)
-        # vertex_attr(private$..net, name = '..objective') <- obj / area
       }
+      
       if(!is.null(private$..param_area_field)){
         vertex_attr(private$..net, name = '..area') <- 
           vertex_attr(private$..net, private$..param_area_field)
       }
+      
       if(!is.null(private$..param_constraint_field)){
         vertex_attr(private$..net, name = '..constraint') <- 
           vertex_attr(private$..net, private$..param_constraint_field)
       }
+      
       if(!is.null(private$..param_threshold)){
         net <- private$..net
         s_txt = private$..param_threshold
@@ -527,7 +514,7 @@ patchmax <- R6::R6Class(
     },
     
     # plot useful seeing search results
-    ...search_plot = function(search_out){
+    ..search_plot = function(search_out){
       
       search_dat <- data.frame(
         names(search_out), 
@@ -550,14 +537,14 @@ patchmax <- R6::R6Class(
         filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
         summarize()
       
-      p1 <- ggplot() + 
+      # plot search results
+      ggplot() + 
         geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
         geom_sf(data=suppressWarnings(st_centroid(seed)), size=4, shape=5) +
         scale_fill_gradientn(colors = sf.colors(10)) +
         theme(legend.position = 'bottom') +
         theme_void() + 
         geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
-      print(p1)
     }
   ),
 

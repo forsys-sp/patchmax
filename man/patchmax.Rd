@@ -312,8 +312,9 @@ Reset recorded patches
 If blank, delete all patches. If negative, delete that number of
 the most recent patches. Else, delete patch ID equal argument.
 
-Update edgelist distances
 Update network adjacency network object
+Update edgelist distances
+Update stand data table template
 }
 
 }
