@@ -18,6 +18,8 @@
 #' @import sf
 #' @import furrr
 #' @import assertive
+#' @rawNamespace import(data.table, except = c("last","first","between"))
+#' @importFrom Rcpp sourceCpp
 #' @importFrom data.table data.table
 #' @importFrom future plan multisession
 #' @importFrom igraph V V<- vertex_attr graph_from_data_frame edge_attr<- vertex_attr<- delete_vertices E
@@ -453,12 +455,16 @@ patchmax <- R6::R6Class(
       
       # get network and edge list
       net <- private$..get_net()
-      cpp_graph <- private$..get_edgelist()
+      # cpp_graph <- private$..get_edgelist()
+      nodes <- self$available_stands
       
       # create node table
-      i = match(cpp_graph$dict$ref, V(net)$name)
+      # i = match(cpp_graph$dict$ref, V(net)$name)
+      i = match(nodes, V(net)$name)
+      
       node_dt <- data.table::data.table(
-        node = cpp_graph$dict$ref, 
+        # node = cpp_graph$dict$ref, 
+        node = nodes,
         dist = NA, 
         area = vertex_attr(net, '..area', i), 
         include = vertex_attr(net, '..include', i),
@@ -604,6 +610,12 @@ patchmax <- R6::R6Class(
       private$..pending_seed
     },
     
+    #' @field available_stands Get stands available for treatment. Read only
+    available_stands = function(){
+      net <- private$..get_net()
+      vertex_attr(net, 'name')
+    },
+    
     #' @field pending_stands Get stands in pending patch. Read only
     pending_stands = function(){
       private$..pending_patch_stands
@@ -619,7 +631,7 @@ patchmax <- R6::R6Class(
       private$..record_patch_stands
     },
     
-    #' @field patch_stats Get list of recorded patches
+    #' @field patch_stats Get list of recorded patchesig
     patch_stats = function(){
       private$..record_patch_stats
     },

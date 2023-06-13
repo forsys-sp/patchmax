@@ -37,7 +37,10 @@ Imports:
   future,
   igraph,
   assertive,
-  proxy
+  proxy,
+  Rcpp, 
+  RcppParallel
+LinkingTo: Rcpp, RcppParallel, RcppProgress
 License: GPL-3
 URL: https://github.com/forsys-sp/patchmax
 Encoding: UTF-8

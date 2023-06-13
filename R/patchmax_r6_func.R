@@ -157,25 +157,24 @@ distance_func <- function(
   el <- as_edgelist(net, names=T) %>% 
     as.data.frame() %>% 
     setNames(c('from','to'))
+  
   el$dist <- E(net)$dist
   
-  # ?? distance modification based on target only give directed network ?? 
-  
-  # calculate average objective score for each dyad
+  # calculate objective score based on dyad alter
   el$objective <- vertex_attr(net, '..objective', match(el$to, V(net)$name)) %>% range01()
   
-  # calculate exclude penalty score for each dyad
+  # calculate exclude penalty score based on dyad alter
   el$exclude <- vertex_attr(net, '..include', match(el$to, V(net)$name)) %>% range01()
   
   # modify distance based on objective 
-  # (increase distance to lower objectives by factor of X)
   el$dist_adj <- el$dist * (1+(1-el$objective)*(10^sdw))
 
   # modify distance based on exclusion status
-  # (increase distance to excluded areas by factor of X)
   el$dist_adj <- el$dist_adj * ifelse(el$exclude, 10^epw, 1)
 
+  # create graph object used by dijkstra
   cpp_graph <- makegraph(el[,c('from','to','dist_adj')])
+  
   return(cpp_graph)
 }
 
@@ -209,7 +208,7 @@ build_func <- function(
   
   # calculate distance matrix using Dijkstra's algorithm
   dt$dist <- get_distance_matrix(edge_dat, seed, edge_dat$dict$ref)[1,]
-  # dt$dist <- calc_network_distance(edge_dat, seed, edge_dat$dict$ref, TRUE, max_search_dist)[1,]
+  # dt$dist <- calc_network_distance(edge_dat, seed, edge_dat$dict$ref)[1,]
   
   # sort nodes by distance, retain stands up to max size, evaluate secondary constraint
   dt <- dt[order(dist)
@@ -217,7 +216,7 @@ build_func <- function(
   ][,area_cs := cumsum(area * threshold_met)
   ][,area_met := (area_cs <= a_max) & (area_cs >= a_min)
   ][,objective_cs := cumsum(objective * threshold_met)
-  ][1:which.min(abs(a_max - area_cs))
+  ][1:which.max(1/(a_max - area_cs)) # select up to (but not over) area ceiling
   ][!is.na(dist)
   ][,constraint_cs := cumsum(constraint * include)
   ][,constraint_met := (constraint_cs > c_min) & (constraint_cs < c_max)

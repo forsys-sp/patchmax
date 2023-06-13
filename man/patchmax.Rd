@@ -27,13 +27,15 @@ pm$plot()
 
 \item{\code{best}}{Get pending stand id representing best patch seed. Read only}
 
+\item{\code{available_stands}}{Get stands available for treatment. Read only}
+
 \item{\code{pending_stands}}{Get stands in pending patch. Read only}
 
 \item{\code{pending_patch}}{Get pending patch stats. Read only}
 
 \item{\code{patch_stands}}{Get list of recorded stands}
 
-\item{\code{patch_stats}}{Get list of recorded patches}
+\item{\code{patch_stats}}{Get list of recorded patchesig}
 
 \item{\code{patch_count}}{Get list of recorded patches}
 
@@ -150,7 +152,6 @@ Search for patch seed with highest objective
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{patchmax$search(
   search_plot = FALSE,
-  return_all = FALSE,
   show_progress = FALSE,
   print_errors = FALSE
 )}\if{html}{\out{</div>}}
@@ -161,19 +162,12 @@ Search for patch seed with highest objective
 \describe{
 \item{\code{search_plot}}{logical Map search results}
 
-\item{\code{return_all}}{logical Return search results}
-
 \item{\code{show_progress}}{logical Show search progress bar}
 
 \item{\code{print_errors}}{logical Print search errors to console}
 }
 \if{html}{\out{</div>}}
 }
-\subsection{Details}{
-By default, \code{set_search_seeds} is NULL. If specified, \code{sample_frac} is
-overwritten and only the specified stand IDs are used to in the search.
-}
-
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-patchmax-simulate"></a>}}

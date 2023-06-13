@@ -6,8 +6,8 @@
 \usage{
 build_func(
   seed,
-  cpp_graph,
-  net,
+  edge_dat,
+  node_dat,
   a_max,
   a_min = -Inf,
   c_max = Inf,
@@ -18,10 +18,6 @@ build_func(
 \arguments{
 \item{seed}{character. Node id to start building patch}
 
-\item{cpp_graph}{graph object built with cppRouting}
-
-\item{net}{igraph Adjacency network with stand attributes}
-
 \item{a_max}{numeric. Maximum size of patch}
 
 \item{a_min}{numeric. Minimum size of patch}
@@ -31,6 +27,10 @@ build_func(
 \item{c_min}{numeric. Minimum secondary constraint of patch}
 
 \item{c_enforce}{logical. Should patches outside of constraint be excluded?}
+
+\item{cpp_graph}{graph object built with cppRouting}
+
+\item{net}{igraph Adjacency network with stand attributes}
 }
 \value{
 data frame of nearest nodes arranged by distance

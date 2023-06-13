@@ -6,7 +6,8 @@
 \usage{
 search_func(
   net,
-  cpp_graph,
+  edge_dat,
+  node_dat,
   nodes = NULL,
   objective_field,
   a_max,
@@ -14,15 +15,12 @@ search_func(
   c_max = Inf,
   c_min = -Inf,
   t_limit = 0,
-  return_all = FALSE,
   show_progress = FALSE,
   print_errors = FALSE
 )
 }
 \arguments{
 \item{net}{igraph graph object}
-
-\item{cpp_graph}{cpp graph object}
 
 \item{nodes}{which nodes to evaluate as potential patches}
 
@@ -38,11 +36,13 @@ search_func(
 
 \item{t_limit}{maximum portion (0-1) of patch area excluded by threshold}
 
-\item{return_all}{logical Return search values for all nodes evaluated}
-
 \item{show_progress}{logical Show progress bar}
 
 \item{print_errors}{logical Print reason for invalid search (for debugging)}
+
+\item{cpp_graph}{cpp graph object}
+
+\item{return_all}{logical Return search values for all nodes evaluated}
 }
 \description{
 Evaluate objective score for all or fraction of patch stand seeds
