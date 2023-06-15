@@ -1,14 +1,15 @@
 library(patchmax)
 library(dplyr)
 library(sf)
-library(future)
-library(ggplot2)
-library(tidyr)
-library(data.table)
+# library(future)
+# library(ggplot2)
+# library(tidyr)
+# library(data.table)
 
 # load stand geometry
 shp <- patchmax::test_forest %>% 
-  filter(row > 25, row <= 45, col > 25, col <= 45) %>%
+  # filter(row > 25, row <= 45, col > 25, col <= 45) %>%
+  filter(row > 10, row <= 20, col > 10, col <= 20) %>%
   mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
 
 # display stand attributes
@@ -18,21 +19,32 @@ shp %>%
 
 # create new patchmax object
 pm <- patchmax$new(
-  geom = shp, 
+  geom = shp, # |> filter(b1 == 1), 
   id_field = 'id', 
   objective_field = 'p4', 
   area_field = 'ha', 
-  area_max = 1000, 
-  area_min = 500)
+  area_max = 1000)
+
+pm$net
+pm$patch_stands$id
+igraph::delete_vertices(pm$net, pm$patch_stands$id) |> plot()
 
 # plot priority
 pm$plot()
+pm$search(print_errors = T)
 
 # search, build, record, and plot best patch
 pm$search()$build()$record()$plot()
 
+pm$build(1014)
+pm$available_stands
+
+pm$reset()$simulate(11)$plot()
+
 # plot search results
 pm$reset()$search(T)
+
+pm$search(T)$record()
 
 # add additional cost constraint
 pm$params = list(
