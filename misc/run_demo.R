@@ -9,6 +9,7 @@ library(sf)
 # load stand geometry
 shp <- patchmax::test_forest %>% 
   # filter(row > 25, row <= 45, col > 25, col <= 45) %>%
+  filter(m1 != 2) |>
   filter(row > 10, row <= 20, col > 10, col <= 20) %>%
   mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
 
@@ -19,18 +20,23 @@ shp %>%
 
 # create new patchmax object
 pm <- patchmax$new(
-  geom = shp, # |> filter(b1 == 1), 
+  geom = shp,
   id_field = 'id', 
   objective_field = 'p4', 
   area_field = 'ha', 
-  area_max = 1000)
+  area_min = 200,
+  area_max = 10000)
+
+pm$search()$build()$record()$plot()
 
 pm$net
+plot(pm$net, vertex.label = NA)
 pm$patch_stands$id
 igraph::delete_vertices(pm$net, pm$patch_stands$id) |> plot()
 
 # plot priority
 pm$plot()
+pm$build(1311)
 pm$search(print_errors = T)
 
 # search, build, record, and plot best patch

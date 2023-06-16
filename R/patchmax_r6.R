@@ -23,6 +23,7 @@
 #' @importFrom data.table data.table
 #' @importFrom future plan multisession
 #' @importFrom igraph V V<- vertex_attr graph_from_data_frame edge_attr<- vertex_attr<- delete_vertices E
+#' @useDynLib patchmax, .registration = TRUE
 #'
 #' @export
 
@@ -90,7 +91,7 @@ patchmax <- R6::R6Class(
       
       # early exist and kill switch
       if(length(node)==0){
-        message('Cancelling build and flagging stop')
+        message('Invalid build')
         private$..kill_switch = TRUE
         return(invisible(self))
       }
@@ -136,15 +137,21 @@ patchmax <- R6::R6Class(
       private$..check_req_fields()
       
       # seed nodes to search
-      x <- V(private$..net)$..sample
-      nodes <- V(private$..net)$name[x == 1]
+      net_s <- private$..get_net()
+      x <- V(net_s)$..sample
+      nodes <- V(net_s)$name[x == 1]
+      
+      if(length(nodes) == 0){
+        message('No stands remaining')
+        return(invisible(self))
+      }
       
       message(glue::glue('Searching {round(sum(x)/length(x) * 100)}% of stands...'))
       
       search_out <- search_func(
         edge_dat = private$..get_edgelist(),
         node_dat = private$..get_nodelist(),
-        net = private$..get_net(), 
+        net = net_s, 
         nodes = nodes,
         objective_field = private$..param_objective_field, 
         a_max = private$..param_area_max,
@@ -161,10 +168,14 @@ patchmax <- R6::R6Class(
       }
       
       # record best patch seed
-      best_out = names(search_out)[which.max(search_out)]
-      message(glue::glue('Best seed: {best_out}'))
-      private$..pending_seed <- best_out
-      
+      if(all(is.na(search_out))){
+        private$..pending_seed <- NULL
+      } else {
+        best_out = names(search_out)[which.max(search_out)]
+        message(glue::glue('Best seed: {best_out}'))
+        private$..pending_seed <- best_out
+      }
+
       return(invisible(self))
     },
     
@@ -254,7 +265,6 @@ patchmax <- R6::R6Class(
     record = function(patch_id = NULL, enforce_constraint = TRUE){
       
       if(is.null(private$..pending_patch_stands)){
-        message('No patch has been built')
         return(invisible(self))
       }
       
@@ -284,6 +294,9 @@ patchmax <- R6::R6Class(
       m = match(private$..pending_patch_stands$node, pull(private$..geom, private$..param_id_field))
       private$..geom$..patch_id[m] = patch_id
       private$..geom$..include[m] = patch_stands$include
+      
+      # reset best node
+      private$..pending_seed <- NULL
       
       # reset pending data
       private$..pending_patch_stands <- NULL

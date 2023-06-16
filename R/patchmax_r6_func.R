@@ -207,10 +207,15 @@ build_func <- function(
   dt <- node_dat
   
   # calculate distance matrix using Dijkstra's algorithm
-  # dt$dist <- get_distance_matrix(edge_dat, from = seed, to = edge_dat$dict$ref)[1,]
-  dt$dist <- calc_network_distance(edge_dat, seed, edge_dat$dict$ref)[1,]
+  dist <- calc_network_distance(
+    edgelist = edge_dat, 
+    nodelist = node_dat, 
+    from = seed, 
+    to = edge_dat$dict$ref)
   
-  # sort nodes by distance, retain stands up to max size, evaluate secondary constraint
+  dt$dist <- dist$dist
+  
+  # sort by distance, retain up to max size, evaluate secondary constraint
   dt <- dt[order(dist)
   ][,threshold_met := (include == 1)
   ][,area_cs := cumsum(area * threshold_met)
