@@ -70,46 +70,48 @@ make_edgelist <- function(df, directed = TRUE, aux = NULL){
 #'
 #' @export
 
-calc_network_distance <- function(edgelist, from, to, aggregate_aux = FALSE, max_aux = Inf){
+calc_network_distance <- function(edgelist, nodelist, from, to, aggregate_aux = FALSE, max_aux = Inf){
   
-  if (any(is.na(from))) stop("NAs are not allowed in origin/destination nodes")
-  if (any(is.na(to))) stop("NAs are not allowed in origin/destination nodes")
-  
+  out <- nodelist[,c('node','dist')]
   from <- as.character(from)
   to <- as.character(to)
   
-  allnodes <- c(from,to)
+  # assume isolated node if from node not in edgelist
+  if (sum(from %in% edgelist$dict$ref) == 0) {
+    out$dist[match(from, out$node)] <- 0
+    return(out)
+  }
   
-  if (sum(allnodes %in% edgelist$dict$ref)<length(allnodes)) stop("Some nodes are not in the edgelist")
-  if (aggregate_aux & length(edgelist$attrib$aux) == 0) stop("network don't have additional weight")
+  if (aggregate_aux & length(edgelist$attrib$aux) == 0) {
+    stop("Network doesn't have additional weight")
+  }
   
   from_id <- edgelist$dict$id[match(from,edgelist$dict$ref)]
   to_id <- edgelist$dict$id[match(to,edgelist$dict$ref)]
   
-  if (aggregate_aux){
-    res <- cpppadd(
-      edgelist$data[,1], 
-      edgelist$data[,2], 
-      edgelist$data[,3], 
-      edgelist$attrib$aux, 
-      edgelist$nbnode, 
-      from_id, 
-      to_id, 
-      max_aux)
-  } else{
-    res <- cppdistmat(
-      edgelist$data[,1], 
-      edgelist$data[,2], 
-      edgelist$data[,3], 
-      edgelist$nbnode, 
-      from_id, 
-      to_id, 
-      max_aux)
-  }
+  if (!aggregate_aux){
+      dist <- cppdistmat(
+        edgelist$data[,1], # edge from
+        edgelist$data[,2], # edge to
+        edgelist$data[,3], # edge distance
+        edgelist$nbnode, # node count
+        from_id, # source
+        to_id, # target
+        max_aux # not used
+        ) 
+      } else {
+      dist <- cpppadd(
+        edgelist$data[,1], # edge from
+        edgelist$data[,2], # edge to
+        edgelist$data[,3], # edge distance
+        edgelist$attrib$aux, # edge aux weight
+        edgelist$nbnode, # node count
+        from_id, # source node
+        to_id, # target nodes
+        max_aux # max aux weight considered
+      )
+    }
   
-  if (!(length(from)< length(to))) res<-t(res)
-  
-  rownames(res)<-from
-  colnames(res)<-to
-  return(res)
+  out$dist[match(to, out$node)] <- dist[1,]
+  return(out)
 }
