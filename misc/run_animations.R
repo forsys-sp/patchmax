@@ -1,18 +1,10 @@
-library(dplyr)
-library(sf)
-library(future)
-library(ggplot2)
-library(tidyr)
-library(patchmax)
-library(animation)
-library(glue)
+# load packages
+pacman::p_load(dplyr, sf, future, ggplot2, tidyr, patchmax, animation, glue)
 
 # load stand geometry
 shp <- patchmax::test_forest %>% 
   filter(row > 30, row <= 70, col > 30, col <= 70) %>%
   mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
-
-# shp <- patchmax::test_forest
 
 # display stand attributes
 shp %>%
@@ -26,6 +18,8 @@ pm <- patchmax$new(
   objective_field = 'p4', 
   area_field = 'ha', 
   area_max = 10000)
+
+pm$reset()$build('5050')$record('X')$plot(return_plot = T) 
 
 bounce <- function(x){
   return(c(x, rev(x)))
@@ -42,14 +36,14 @@ saveVideo({
       ggtitle(glue('Area max {i}'))
     print(p)
   }
-}, video.name = 'variable_size.mp4')
+}, video.name = 'misc/animations/variable_size.mp4')
 
 
 # variable SDW
 ani.options(loop = 0, ani.res=100, interval=0.1)
 saveVideo({
   pm$params <- list(area_max = 25000)
-  sq <- seq(0,1,0.02)
+  sq <- seq(-1, 1, length.out = 25) |> round(2)
   for (i in bounce(sq)) {
     pm$sdw <- i
     p <- pm$reset()$build('5050')$record('X')$plot(return_plot = T) + 
@@ -57,13 +51,13 @@ saveVideo({
       ggtitle(glue('SDW {i}'))
     print(p)
   }
-}, video.name = 'variable_sdw.mp4')
+}, video.name = 'misc/animations/variable_sdw.mp4')
 
 # variable EDW
 ani.options(loop = 0, ani.res=100, interval=0.1)
 saveVideo({
   pm$params <- list(area_max = 25000, sdw = 0.5, threshold = 'c3 == 1')
-  sq <- seq(0,1,0.02)
+  sq <- seq(-1, 1, length.out = 50) |> round(2)
   for (i in bounce(sq)) {
     pm$epw <- i
     p <- pm$reset()$build('5050')$record('X')$plot(return_plot = T) + 
@@ -71,7 +65,7 @@ saveVideo({
       ggtitle(glue('EPW {i}; Excluded {pm$patch_stats$excluded}%'))
     print(p)
   }
-}, video.name = 'variable_epw.mp4')
+}, video.name = 'misc/animations/variable_epw.mp4')
 
 # variable priorities variable ratio
 ani.options(loop = 0, ani.res=100, interval=0.1)
@@ -88,10 +82,11 @@ saveVideo({
       ggtitle(glue('Priority 1 weight {round(i,2)}'))
     print(p)
   }
-}, video.name = 'variable_priorities_alt.mp4')
+}, video.name = 'misc/animations/variable_priorities_alt.mp4')
 
 
-# project building (SDW = 1)
+# sequential patch building demo (SDW = 1)
+
 ani.options(loop = 0, ani.res=100, interval=1)
 saveVideo({
 
@@ -107,9 +102,11 @@ saveVideo({
       ggtitle(glue('Patch {i} SDW 1.0'))
     print(p)
   }
-}, video.name = 'build_10_patches_sdw1.mp4')
+}, video.name = 'misc/animations/build_10_patches_sdw1.mp4')
 
-# project building (SDW = 0.25)
+
+# sequential patch building demo (SDW = 0.25)
+
 ani.options(loop = 0, ani.res=100, interval=1)
 saveVideo({
   
@@ -125,9 +122,102 @@ saveVideo({
       ggtitle(glue('Patch {i} SDW 0.25'))
     print(p)
   }
-}, video.name = 'build_10_patches_sdw25.mp4')
+}, video.name = 'misc/animations/build_10_patches_sdw25.mp4')
 
 
+# typewriter search animation demo
+
+pm <- patchmax$new(
+  geom = shp, 
+  id_field = 'id', 
+  objective_field = 'p4', 
+  area_field = 'ha', 
+  area_max = 25000,
+  sdw = .1)
+
+ani.options(loop = 0, ani.res=100, interval=0.1, ani.width = 1000, ani.height = 600)
+saveVideo({
+  
+  pm$reset()$search()
+  geom_template <- pm$geom |> left_join(pm$search_results) |> rename(objective = search)
+  
+  sq <- pm$geom |> 
+    filter(row_number() %% 10 == 1) |>
+    pull(id)
+  
+  for (i in sq) {
+    
+    pm$reset()$build(i)$record('X')
+    p <- pm$reset()$build(i)$record('X')$plot(return_plot = T) + 
+      theme(legend.position = 'none', plot.title = element_text(hjust=0.5)) +
+      ggtitle(glue('Search area'))
+    g2 <- geom_template |> 
+      mutate(objective = ifelse(as.numeric(geom_template$id) > as.numeric(i), NA, objective))
+    p2 <- ggplot() + 
+      geom_sf(data = g2, aes(fill = objective), linewidth=0) + 
+      scale_fill_viridis_c(limits = c(115, 170)) + 
+      geom_sf(data = g2 |> filter(!is.na(objective)) |> slice_tail(n = 1), fill = 'black',) +
+      geom_sf(data = g2 |> filter(objective == max(objective, na.rm=T)), fill = 'red',) +
+      theme_void() + theme(legend.position = 'none', plot.title = element_text(hjust=0.5)) +
+      ggtitle(glue('Objective score'))
+    print(cowplot::plot_grid(p, p2))
+  }
+}, video.name = 'misc/animations/search_demo_sdw_01.mp4')
+
+
+# typewriter animation w/ threshold and secondary constraint
+
+pm$params <- list(
+  sdw = .1, 
+  threshold = 'c3 == 1', 
+  epw = .5, 
+  exclusion_limit = .7,
+  area_min = 7500,
+  constraint_field = 'cost',
+  constraint_max = 200000
+)
+
+ani.options(loop = 0, ani.res=100, interval=0.1, ani.width = 1000, ani.height = 600)
+saveVideo({
+  
+  pm$reset()$search()
+  
+  geom_template <- pm$geom |> 
+    left_join(pm$search_results) |> 
+    left_join(pm$search_errors) |> 
+    rename(objective = search)
+
+  sq <- pm$geom |> 
+    filter(row_number() %% 10 == 1) |>
+    pull(id)
+  
+  i <- sq[100]
+  for (i in sq) {
+    
+    pm$reset()$build(i)$record('X')
+    p <- pm$reset()$build(i)$record('X')$plot(return_plot = T) + 
+      theme(legend.position = 'none', plot.title = element_text(hjust=0.5)) +
+      ggtitle(glue('Search area'))
+    g2 <- geom_template |> 
+      mutate(objective = ifelse(as.numeric(geom_template$id) > as.numeric(i), NA, objective)) |>
+      mutate(error = ifelse(as.numeric(geom_template$id) > as.numeric(i), NA, error))
+    p2 <- ggplot() + 
+      geom_sf(data = g2, aes(fill = objective), linewidth=0) + 
+      scale_fill_viridis_c() + 
+      geom_sf(data = g2 |> filter(grepl('Exclusion', error)), fill = 'purple') +
+      geom_sf(data = g2 |> filter(grepl('Constraints', error)), fill = 'hotpink') +
+      geom_sf(data = g2 |> filter(!is.na(objective)) |> slice_tail(n = 1), fill = 'black',) +
+      geom_sf(data = g2 |> filter(objective == max(objective, na.rm=T)), fill = 'red',) +
+      theme_void() + theme(legend.position = 'none', plot.title = element_text(hjust=0.5)) +
+      ggtitle(glue('Objective score'))
+    
+    print(cowplot::plot_grid(p, p2))
+  }
+}, video.name = 'misc/animations/search_demo_errors.mp4')
+
+pm$plot('p4')
+pm$plot('cost')
+pm$plot('c3')
 
 
 

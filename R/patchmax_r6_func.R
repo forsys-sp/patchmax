@@ -149,6 +149,8 @@ distance_func <- function(
     epw = 0
   ) {
   
+  flip01 <- function(x){ 1 - x }
+  
   if(igraph::gsize(net) == 0){
     return(cpp_graph = NULL)
   }
@@ -160,17 +162,22 @@ distance_func <- function(
   
   el$dist <- E(net)$dist
   
-  # calculate objective score based on dyad alter
-  el$objective <- vertex_attr(net, '..objective', match(el$to, V(net)$name)) %>% range01()
+  # pull objective score of tie alter standardize range from 0 to 1
+  el$objective <- vertex_attr(net, '..objective', match(el$to, V(net)$name))
+  el$objective <- el$objective %>% range01()
   
-  # calculate exclude penalty score based on dyad alter
-  el$exclude <- vertex_attr(net, '..include', match(el$to, V(net)$name)) %>% range01()
+  # modify distance based on alter objective score
+  # OLD: el$dist_adj <- el$dist * (1+(1-el$objective)*(base_fact^sdw))
+  objective_mod <- 1 + flip01(el$objective) ^ sdw
+  el$dist_adj <- el$dist ^ objective_mod
   
-  # modify distance based on objective 
-  el$dist_adj <- el$dist * (1+(1-el$objective)*(10^sdw))
+  # pull exclude score from tie alter
+  el$exclude <- vertex_attr(net, '..include', match(el$to, V(net)$name))
 
   # modify distance based on exclusion status
-  el$dist_adj <- el$dist_adj * ifelse(el$exclude, 10^epw, 1)
+  # OLD: el$dist_adj <- el$dist_adj * ifelse(el$exclude, base_fact^epw, 1)
+  exclusion_mod <- ifelse(el$exclude, 1, 10) ^ epw
+  el$dist_adj <- el$dist_adj * exclusion_mod
 
   # create graph object used by dijkstra
   cpp_graph <- makegraph(el[,c('from','to','dist_adj')])
@@ -200,8 +207,7 @@ build_func <- function(
     a_max, 
     a_min=-Inf, 
     c_max=Inf, 
-    c_min=-Inf, 
-    c_enforce=TRUE
+    c_min=-Inf 
   ) {
   
   dt <- node_dat
@@ -242,7 +248,7 @@ build_func <- function(
 #' @param a_min minimum patch size (only applicable if constraint is present)
 #' @param c_max maximum constraint value
 #' @param c_min minimum constraint value
-#' @param t_limit maximum portion (0-1) of patch area excluded by threshold
+#' @param t_limit maximum allowable portion (0-1) of patch area excluded by threshold
 #' @param return_all logical Return search values for all nodes evaluated
 #' @param show_progress logical Show progress bar 
 #' @param print_errors logical Print reason for invalid search (for debugging)
@@ -261,17 +267,18 @@ build_func <- function(
     a_min, 
     c_max=Inf, 
     c_min=-Inf,
-    t_limit=0,
+    t_limit=1,
     show_progress=FALSE,
     print_errors=FALSE
     ){
   
+    # use all nodes as seeds if seed list unspecified
     if(is.null(nodes)){
       nodes = V(net)$name
     }
     
     # calculate objective score for all potential patches
-    search_out <- nodes %>% future_map_dbl(function(i) {
+    search_out <- nodes %>% future_map(function(i) {
       
       proj_obj <- NA
       
@@ -280,32 +287,39 @@ build_func <- function(
         # build patch at node i
         patch <- build_func(i, edge_dat, node_dat, a_max, a_min, c_max, c_min)
         
-        # calculate thershold exclusion limit
-        t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
-        
         # error if neither area or secondary constraint are not met
         if(!last(patch$area_met) | !last(patch$constraint_met)){
-          stop(paste0('Constaint(s) not met @', i))
+          stop('Constraints exceeded')
         }
         
         # error if exclusion rate greater than exclusion limit
-        if(t_sum <= (1 - t_limit)){
-          stop(paste0('Threshold limit exceeded @', i))
+        t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
+        if(!is.null(t_limit) & t_sum <= t_limit){
+          stop('Exclusion limit exceeded')
         }
         
         proj_obj = last(patch$objective_cs)
         return(proj_obj)
       }, 
       error = function(e){
-        if(print_errors) print(e)
-        return(NA)
+        return(e$message)
       })
     }, .progress=show_progress, .options = furrr_options(seed = NULL))
-
+    
     # label search output with unit IDs
     names(search_out) <- nodes
     
-    return(search_out)
+    # identify invalid builds
+    errors <- search_out |> map_chr(\(x) ifelse(is.character(x), x, NA))
+    
+    if(print_errors){
+      table(errors) |> print()
+    }
+    
+    # return valid builds
+    out <- search_out |> map_dbl(\(x) ifelse(is.numeric(x), x, NA))
+    
+    return(list(values = out, errors = errors))
 }
 
   

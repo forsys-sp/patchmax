@@ -89,10 +89,10 @@ patchmax <- R6::R6Class(
         node <- private$..pending_seed
       }
       
-      # early exist and kill switch
+      # early exit if node is NULL
       if(length(node)==0){
         message('Invalid build')
-        private$..kill_switch = TRUE
+        private$..stop_switch = TRUE
         return(invisible(self))
       }
       
@@ -107,7 +107,7 @@ patchmax <- R6::R6Class(
         c_max = private$..param_constraint_max,
         c_min = private$..param_constraint_min)
       
-      # append auxiliary stand data
+      # append  stand data
       aux_data <- vertex_attr(private$..net) %>% 
         select(node = name, 
                private$..param_objective_field, 
@@ -162,16 +162,26 @@ patchmax <- R6::R6Class(
         show_progress = show_progress, 
         print_errors = print_errors)
       
+      search_values = search_out$values
+      search_errors = search_out$errors
+      
       # plot search results if desired
       if(search_plot){
-        private$..search_plot(search_out)
+        private$..search_plot(search_values)
       }
       
+      # save search results
+      id = names(search_values)
+      private$..search_results <- data.frame(search = search_values) |> 
+        mutate(!!private$..param_id_field := id)
+      private$..search_errors <- data.frame(error = search_errors) |> 
+        mutate(!!private$..param_id_field := id)
+
       # record best patch seed
-      if(all(is.na(search_out))){
+      if(all(is.na(search_values))){
         private$..pending_seed <- NULL
       } else {
-        best_out = names(search_out)[which.max(search_out)]
+        best_out = names(search_values)[which.max(search_values)]
         message(glue::glue('Best seed: {best_out}'))
         private$..pending_seed <- best_out
       }
@@ -261,8 +271,9 @@ patchmax <- R6::R6Class(
     #' Record selected patch
     #' @param patch_id integer/character Patch name. If null, add one to highest
     #' @param enforce_constraint logical Apply secondary constraint
+    #' @param write logical Write output to file
     #'
-    record = function(patch_id = NULL, enforce_constraint = TRUE){
+    record = function(patch_id = NULL, enforce_constraint = TRUE, write = FALSE){
       
       if(is.null(private$..pending_patch_stands)){
         return(invisible(self))
@@ -301,6 +312,12 @@ patchmax <- R6::R6Class(
       # reset pending data
       private$..pending_patch_stands <- NULL
       private$..pending_patch_stats <- NULL
+      
+      if(write){
+        tag <- Sys.getpid()
+        write.csv(self$patch_stands, paste0('patch_stands_', tag, '.csv'))
+        write.csv(self$patch_stats, paste0('patch_stats_', tag, '.csv'))
+      }
       
       message(glue::glue('Patch {patch_id} recorded'))
       return(invisible(self))
@@ -407,7 +424,7 @@ patchmax <- R6::R6Class(
         }
       }
 
-      private$..kill_switch = FALSE
+      private$..stop_switch = FALSE
       private$..pending_patch_stands = NULL
       private$..pending_patch_stats = NULL
       private$..pending_seed = NULL
@@ -436,15 +453,17 @@ patchmax <- R6::R6Class(
     ..param_constraint_field = NULL,
     ..param_constraint_max = Inf,
     ..param_constraint_min = -Inf,
-    ..param_sdw = 0.5,
-    ..param_epw = 0.5,
+    ..param_sdw = 0,
+    ..param_epw = 0,
     ..param_rng_seed = NULL,
     ..pending_patch_stands = NULL,
     ..pending_patch_stats = NULL,
     ..pending_seed = NULL,
+    ..search_results = NULL,
+    ..search_errors = NULL,
     ..record_patch_stands = NULL,
     ..record_patch_stats = NULL,
-    ..kill_switch = FALSE,
+    ..stop_switch = FALSE,
 
     #' Update network adjacency network object
     ..get_net = function(){
@@ -468,11 +487,9 @@ patchmax <- R6::R6Class(
       
       # get network and edge list
       net <- private$..get_net()
-      # cpp_graph <- private$..get_edgelist()
       nodes <- self$available_stands
       
       # create node table
-      # i = match(cpp_graph$dict$ref, V(net)$name)
       i = match(nodes, V(net)$name)
       
       node_dt <- data.table::data.table(
@@ -608,13 +625,13 @@ patchmax <- R6::R6Class(
       }
     },
     
-    #' @field kill_switch = Flag for stopping patchmax
-    kill_switch = function(value){
+    #' @field stop_switch = Flag for stopping patchmax
+    stop_switch = function(value){
       if(missing(value)){
-        private$..kill_switch
+        private$..stop_switch
       } else {
         assertive::is_logical(value)
-        private$..kill_switch = value
+        private$..stop_switch = value
       }
     },
     
@@ -627,6 +644,16 @@ patchmax <- R6::R6Class(
     available_stands = function(){
       net <- private$..get_net()
       vertex_attr(net, 'name')
+    },
+    
+    #' @field search_results Get search results. Read only
+    search_results = function(){
+      private$..search_results
+    },
+    
+    #' @field search_errors Get search errors. Read only
+    search_errors = function(){
+      private$..search_errors
     },
     
     #' @field pending_stands Get stands in pending patch. Read only

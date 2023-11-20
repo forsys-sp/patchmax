@@ -16,6 +16,7 @@
 #' @param P_constraint_max_value numeric. Project constraint upper value. Default is Inf
 #' @param P_constraint_min_value numeric. Project constraint lower value. Default is -Inf
 #' @param sample_frac numeric 0-1. Portion of stands to search 
+#' @param write_output logical. Write intermediate patch output to file
 #'
 #' @return list with first element describing patch-level stats and the second
 #'   element describing stand-level stats.
@@ -44,7 +45,8 @@ simulate_projects <- function(
     P_constraint_max_value = Inf,
     P_constraint_min_value = -Inf,
     sample_frac = 0.1,
-    sample_seed = NULL
+    sample_seed = NULL,
+    write_output = F
 ){
   
   if(!any(class(geom) == 'sf')){
@@ -89,17 +91,24 @@ simulate_projects <- function(
   repeat {
     
     # search and build best patch
-    pm$search(show_progress = F)$build()
+    pm$search(show_progress = T)$build()
     
-    # break search if kill switch triggered
-    if(pm$kill_switch == TRUE){
-      message('Search stopped by kill switch')
+    # break search if stop switch triggered
+    if(pm$stop_switch == TRUE){
+      message('No seeds to search')
       break
     }
     
     # increment area count
-    csum <- ifelse(is.null(pm$patch_stats), 0, sum(pm$patch_stats$area)) + 
-      ifelse(is.null(pm$pending_patch$area), 0, pm$pending_patch$area)
+    csum <- ifelse(
+      test = is.null(pm$patch_stats), 
+      yes = 0, 
+      no = sum(pm$patch_stats$area)) + 
+      ifelse(
+        test = is.null(pm$pending_patch$area), 
+        yes = 0, 
+        no = pm$pending_patch$area)
+    
     if (csum > P_ceiling_max) {
       message('Project ceiling reached')
       break
@@ -113,7 +122,7 @@ simulate_projects <- function(
     } 
     
     # record patch info
-    pm$record()
+    pm$record(write = write_output)
   }
 
   if(pm$patch_count > 0){
