@@ -1,6 +1,8 @@
 ---
 title: "Patchmax"
 output: github_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -66,14 +68,13 @@ pm <- patchmax$new(
   id_field = 'id', 
   objective_field = 'p4', 
   area_field = 'ha', 
-  area_max = 1000)
+  area_max = 2500)
 ```
 
 The core purpose of patchmax is build spatially contiguous patches that maximizes some objective given some maximum size constraint. The example below shows how this is done over a series of steps: (1) patchmax searches for the best place, (2) builds that patch, (3) plots the patch, (4) records the patch, (5) describes the patch statistics.
 
 ```{r, message=FALSE, warning=FALSE, fig.height=3}
 pm$search()
-pm$build()
 pm$record()
 pm$plot()
 ```
@@ -82,15 +83,15 @@ Note that the same set of sequence of steps can be chained together into a singl
 
 To get a better sense of how the patch is selected, let's look at the search results in more detail. The plot below shows the patch scores using each stand as a potential seed. Note how the stands recorded in the previous patch are excluded. While the search plot looks similar to stand plot of the priority `p4`, the values represent the potential objective score of a patch if it were built from that location. In this sense, patchmax works similar to a moving window spatial analysis 
 
-```{r, search_example, message=F}
-pm$search(search_plot = T)
+```{r, search_example}
+pm$search(plot = T)
 ```
 
 Next we'll change a few additional parameters and see how this affects the search. Notice how two large blocks of the landscape are excluded due to the new treatment threshold.
 
-```{r}
+```{r, message=F}
 pm$threshold = 't1 == 1'
-pm$search(search_plot = T)
+pm$search(plot = T)
 ```
 
 Next, let's add a secondary constraint that limits the overall cost of each patch to 15000. Note how this suppresses the search_out scores substantially; many of the potential patch locations that were able to produce high quality patches are now blue. This change is the result of the new cost constraint limiting patch sizes in many areas of the landscape from growing more than a few stands in size, hence the lower scores.
@@ -98,14 +99,14 @@ Next, let's add a secondary constraint that limits the overall cost of each patc
 ```{r, message=F}
 pm$constraint_field = 'cost'
 pm$constraint_max = 15000
-pm$search(search_plot = T)
+pm$search(plot = T, verbose =T)
 ```
 
 Adding a minimum patch size constrains potential projects further and removes additional sections of the landscape from consideration since no viable patches exist. 
 
 ```{r, message=F}
 pm$area_min = 500
-pm$search(search_plot = T)
+pm$search(plot = T)
 ```
 
 As a final step, we'll reset the patchmax run and use the simulate method to identify the 10 highest prioirty patches given the area, cost and threshold constraints. 

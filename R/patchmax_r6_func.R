@@ -269,7 +269,7 @@ build_func <- function(
     c_min=-Inf,
     t_limit=1,
     show_progress=FALSE,
-    print_errors=FALSE
+    verbose=FALSE
     ){
   
     # use all nodes as seeds if seed list unspecified
@@ -289,13 +289,13 @@ build_func <- function(
         
         # error if neither area or secondary constraint are not met
         if(!last(patch$area_met) | !last(patch$constraint_met)){
-          stop('Constraints exceeded')
+          stop('Invalid from constraints')
         }
         
         # error if exclusion rate greater than exclusion limit
         t_sum <- sum(patch$area * patch$threshold_met)/sum(patch$area)
-        if(!is.null(t_limit) & t_sum <= t_limit){
-          stop('Exclusion limit exceeded')
+        if(!is.null(t_limit) & t_sum <= (1 - t_limit)){
+          stop('Invalid from thresholds')
         }
         
         proj_obj = last(patch$objective_cs)
@@ -312,8 +312,9 @@ build_func <- function(
     # identify invalid builds
     errors <- search_out |> map_chr(\(x) ifelse(is.character(x), x, NA))
     
-    if(print_errors){
-      table(errors) |> print()
+    if(verbose){
+      tab <- table(errors)
+      message(glue::glue("Search count: {length(nodes)} (Valid seeds: {sum(is.na(errors))}, {paste0(names(tab), ': ', tab, collapse = ', ')})"))
     }
     
     # return valid builds

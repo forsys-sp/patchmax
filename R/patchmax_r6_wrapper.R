@@ -31,7 +31,7 @@ simulate_projects <- function(
     St_id,
     St_area,
     St_objective, 
-    St_seed = NULL, # TODO To add in order to maintain compatibility with VP
+    St_seed = NULL,
     P_size,
     P_size_min = -Inf,
     P_number = 1, 
@@ -46,6 +46,7 @@ simulate_projects <- function(
     P_constraint_min_value = -Inf,
     sample_frac = 0.1,
     sample_seed = NULL,
+    verbose = F,
     write_output = F
 ){
   
@@ -91,9 +92,9 @@ simulate_projects <- function(
   repeat {
     
     # search and build best patch
-    pm$search(show_progress = T)$build()
+    pm$search(show_progress = T, verbose = verbose)$build()
     
-    # break search if stop switch triggered
+    # break loop if stop switch triggered
     if(pm$stop_switch == TRUE){
       message('No seeds to search')
       break
@@ -109,6 +110,7 @@ simulate_projects <- function(
         yes = 0, 
         no = pm$pending_patch$area)
     
+    # break loop if project ceiling is reached
     if (csum > P_ceiling_max) {
       message('Project ceiling reached')
       break
@@ -116,6 +118,8 @@ simulate_projects <- function(
     
     # increment project count
     pcnt <- ifelse(is.null(pm$patch_stats), 0, nrow(pm$patch_stats)) + 1
+    
+    # break loop if project count is reached
     if (pcnt > P_number) {
       message('Project count reached')
       break

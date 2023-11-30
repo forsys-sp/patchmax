@@ -83,7 +83,7 @@ patchmax <- R6::R6Class(
     #' @param node character. Stand ID used to build patch (optional)
     #' @details If node is NULL, use stand id found during search
     #' 
-    build = function(node=NULL){
+    build = function(node=NULL, verbose=FALSE){
       
       if(is.null(node)){
         node <- private$..pending_seed
@@ -117,7 +117,7 @@ patchmax <- R6::R6Class(
       
       # save patch stat and stand data
       private$..pending_patch_stands <- patch
-      private$..pending_patch_stats <- calc_patch_stats(patch)
+      private$..pending_patch_stats <- calc_patch_stats(patch, verbose = verbose)
       
       return(invisible(self))
     },
@@ -125,13 +125,13 @@ patchmax <- R6::R6Class(
     # ..........................................................................
     #' @description Search for patch seed with highest objective
     #' @param show_progress logical Show search progress bar
-    #' @param search_plot logical Map search results
-    #' @param print_errors logical Print search errors to console
+    #' @param plot logical Map search results
+    #' @param verbose logical Print search errors to console
     #'   
     search = function(
-      search_plot = FALSE, 
+      plot = FALSE, 
       show_progress = FALSE,
-      print_errors = FALSE
+      verbose = FALSE
     ) {
       
       private$..check_req_fields()
@@ -146,7 +146,9 @@ patchmax <- R6::R6Class(
         return(invisible(self))
       }
       
-      message(glue::glue('Searching {round(sum(x)/length(x) * 100)}% of stands...'))
+      if(verbose){
+        message(glue::glue('Searching {round(sum(x)/length(x) * 100)}% of stands...')) 
+      }
       
       search_out <- search_func(
         edge_dat = private$..get_edgelist(),
@@ -160,14 +162,14 @@ patchmax <- R6::R6Class(
         c_min = private$..param_constraint_min,
         t_limit = private$..param_exclusion_limit,
         show_progress = show_progress, 
-        print_errors = print_errors)
+        verbose = verbose)
       
       search_values = search_out$values
       search_errors = search_out$errors
-      
+
       # plot search results if desired
-      if(search_plot){
-        private$..search_plot(search_values)
+      if(plot){
+        private$..search_plot(search_out)
       }
       
       # save search results
@@ -184,6 +186,7 @@ patchmax <- R6::R6Class(
         best_out = names(search_values)[which.max(search_values)]
         message(glue::glue('Best seed: {best_out}'))
         private$..pending_seed <- best_out
+        self$build(verbose = verbose)
       }
 
       return(invisible(self))
@@ -554,35 +557,48 @@ patchmax <- R6::R6Class(
     # plot useful seeing search results
     ..search_plot = function(search_out){
       
+      search_values <- search_out$values
+      
       search_dat <- data.frame(
-        names(search_out), 
-        search_out = as.numeric(search_out)
+        names(search_values), 
+        search = as.numeric(search_values),
+        error = search_out$errors
       ) %>%
         rename(!!private$..param_id_field := 1)
       
       pdat <- dplyr::inner_join(
         x = private$..geom, 
         y = search_dat, 
-        by=private$..param_id_field)
+        by = private$..param_id_field)
+      
+      suppressWarnings(
+        pdat_xy <- pdat |> st_centroid()
+      )
       
       # identify best seed
-      seed <- pdat[pdat$search_out == max(pdat$search_out, na.rm=TRUE),]
+      seed <- pdat[pdat$search == max(pdat$search, na.rm=TRUE),]
       
       # build best patch
-      best_out = names(search_out)[which.max(search_out)]
+      best_out = names(search_values)[which.max(search_values)]
       self$build(best_out)
       patch_geom <- self$geom %>% 
         filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
         summarize()
       
       # plot search results
-      ggplot() + 
-        geom_sf(data=pdat, aes(fill=search_out), linewidth=0) +
-        geom_sf(data=suppressWarnings(st_centroid(seed)), size=4, shape=5) +
-        scale_fill_gradientn(colors = sf.colors(10)) +
+      p1 <- ggplot() + 
+        geom_sf(data = pdat, aes(fill=search), linewidth=0) +
+        scale_fill_gradientn(colors = sf.colors(10)) + 
+        geom_sf(data = pdat_xy |> filter(grepl('threshold', error)),
+                shape = 't', size = 3) +
+        geom_sf(data = pdat_xy |> filter(grepl('constraint', error)),
+                shape = 'c', color = 'red', size = 3) +
+        geom_sf(data = suppressWarnings(st_centroid(seed)), size=4, shape=5) +
         theme(legend.position = 'bottom') +
         theme_void() + 
         geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
+      
+      print(p1)
     }
   ),
 

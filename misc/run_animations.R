@@ -167,6 +167,13 @@ saveVideo({
 
 # typewriter animation w/ threshold and secondary constraint
 
+pm <- patchmax$new(
+  geom = shp, 
+  id_field = 'id', 
+  objective_field = 'p4', 
+  area_field = 'ha', 
+  area_max = 10000)
+
 pm$params <- list(
   sdw = .1, 
   threshold = 'c3 == 1', 
@@ -176,6 +183,10 @@ pm$params <- list(
   constraint_field = 'cost',
   constraint_max = 200000
 )
+
+pm$reset()$search()
+pm$reset()$search(search_plot = T, verbose = F)
+pm$reset()$search(search_plot = T, verbose = T)
 
 ani.options(loop = 0, ani.res=100, interval=0.1, ani.width = 1000, ani.height = 600)
 saveVideo({
@@ -204,8 +215,8 @@ saveVideo({
     p2 <- ggplot() + 
       geom_sf(data = g2, aes(fill = objective), linewidth=0) + 
       scale_fill_viridis_c() + 
-      geom_sf(data = g2 |> filter(grepl('Exclusion', error)), fill = 'purple') +
-      geom_sf(data = g2 |> filter(grepl('Constraints', error)), fill = 'hotpink') +
+      geom_sf(data = g2 |> filter(grepl('threshold', error)), fill = 'purple') +
+      geom_sf(data = g2 |> filter(grepl('constraint', error)), fill = 'hotpink') +
       geom_sf(data = g2 |> filter(!is.na(objective)) |> slice_tail(n = 1), fill = 'black',) +
       geom_sf(data = g2 |> filter(objective == max(objective, na.rm=T)), fill = 'red',) +
       theme_void() + theme(legend.position = 'none', plot.title = element_text(hjust=0.5)) +

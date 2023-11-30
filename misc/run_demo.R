@@ -8,26 +8,73 @@ library(sf)
 
 # load stand geometry
 shp <- patchmax::test_forest %>% 
-  # filter(row > 25, row <= 45, col > 25, col <= 45) %>%
-  filter(m1 != 2) |>
-  filter(row > 10, row <= 20, col > 10, col <= 20) %>%
-  mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
+  # filter(row > 23, row <= 42, col > 25, col <= 42) %>%
+  # filter(row > 10, row <= 20, col > 10, col <= 20) %>%
+  filter(m1 = 3, t2 == 1) |>
+  mutate(cost = ((p2 + p4 - c1) * 1000) + 3000) %>%
+  mutate(p5 = p4 * (1 - p3)) %>%
+  mutate(p5 = p5 * p5)
 
 # display stand attributes
 shp %>%
   select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]|cost')) %>%
   plot(max.plot = 20, border=NA)
 
+bw.colors <- function(n){
+  grey.colors(n, start = 0, end = 1, rev = T)
+}
+plot(shp[,'p5'], nbreaks = 10, pal = bw.colors)
+plot(shp[,'t2'], pal = c(NA,'red'), border=NA)
+
+
+shp <- st_read('~/Downloads/GreatBasinSmaller.gdb/', 'GreatBasinHexnet')
+shp <- shp |> filter(PYROME == 19)
+pm <- patchmax$new(
+  geom = shp |> filter(Avail == 1),
+  id_field = 'hex_id', 
+  objective_field = 'expAL', 
+  area_field = 'Area_ha', 
+  area_min = 200,
+  area_max = 10000)
+
+library(cppRouting)
+el <- pm$net |> igraph::as_data_frame()
+mg <- makegraph(el)
+mgc <- cpp_contract(mg)
+RcppParallel::setThreadOptions(numThreads = 4)
+get_distance_matrix(mg, from = mgc$dict$ref, to = mgc$dict$ref)
+get_distance_matrix(mgc, from = mgc$dict$ref, to = mgc$dict$ref)
+
+library(microbenchmark)
+microbenchmark(
+  a=dmat1 <- get_distance_matrix(mg, from = mgc$dict$ref, to = mgc$dict$ref),
+  b=dmat2 <- get_distance_matrix(mgc, from = mgc$dict$ref, to = mgc$dict$ref),
+  c=dmat2 <- get_distance_matrix(mgc, from = mgc$dict$ref, to = mgc$dict$ref, algorithm = 'mch'),
+  times=1)
+
+
 # create new patchmax object
 pm <- patchmax$new(
   geom = shp,
   id_field = 'id', 
-  objective_field = 'p4', 
+  objective_field = 'p5', 
   area_field = 'ha', 
+  threshold = 'c3 == 1',
   area_min = 200,
   area_max = 10000)
 
-pm$search()$build()$record()$plot()
+
+
+
+
+
+pm$reset()$plot()
+pm$reset()$build(2833)$record()$plot()
+pm$reset()$build(2333)$record()$plot()
+
+pm$reset()$search()$build()$record(write=F)$plot()
+
+pm$params <- list(sdw = 0)
 
 pm$net
 plot(pm$net, vertex.label = NA)

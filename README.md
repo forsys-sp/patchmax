@@ -79,7 +79,7 @@ pm <- patchmax$new(
   id_field = 'id', 
   objective_field = 'p4', 
   area_field = 'ha', 
-  area_max = 1000)
+  area_max = 2500)
 ```
 
 The core purpose of patchmax is build spatially contiguous patches that
@@ -90,7 +90,6 @@ searches for the best place, (2) builds that patch, (3) plots the patch,
 
 ``` r
 pm$search()
-pm$build()
 pm$record()
 pm$plot()
 ```
@@ -110,7 +109,7 @@ objective score of a patch if it were built from that location. In this
 sense, patchmax works similar to a moving window spatial analysis
 
 ``` r
-pm$search(search_plot = T)
+pm$search(plot = T)
 ```
 
 ![](man/figures/search_example-1.png)<!-- -->
@@ -121,7 +120,7 @@ due to the new treatment threshold.
 
 ``` r
 pm$threshold = 't1 == 1'
-pm$search(search_plot = T)
+pm$search(plot = T)
 ```
 
 ![](man/figures/unnamed-chunk-6-1.png)<!-- -->
@@ -137,7 +136,7 @@ scores.
 ``` r
 pm$constraint_field = 'cost'
 pm$constraint_max = 15000
-pm$search(search_plot = T)
+pm$search(plot = T, verbose =T)
 ```
 
 ![](man/figures/unnamed-chunk-7-1.png)<!-- -->
@@ -148,7 +147,7 @@ viable patches exist.
 
 ``` r
 pm$area_min = 500
-pm$search(search_plot = T)
+pm$search(plot = T)
 ```
 
 ![](man/figures/unnamed-chunk-8-1.png)<!-- -->
@@ -170,16 +169,16 @@ pm$patch_stats
 ```
 
     ##    patch_id seed area coverage objective constraint excluded
-    ## 1         1 2933  800     1000       6.7      14200       20
-    ## 2         2 3438 1000     1000       6.7      12420        0
-    ## 3         3 2432 1000     1000       5.1      14430        0
-    ## 4         4 2033  900     1200       4.8      14890       25
-    ## 5         5 3733  800     1200       4.5      14390       33
-    ## 6         6 3030  900      900       4.3      14940        0
-    ## 7         7 3235  900     1400       4.1      14370       36
+    ## 1         1 3033 1200     1800       7.8      14230       33
+    ## 2         2 3338 1300     2200       7.7      14380       41
+    ## 3         3 2233 1100     1700       5.2      14920       35
+    ## 4         4 2632  800      800       5.1      13520        0
+    ## 5         5 3129 1600     1700       4.4      14570        6
+    ## 6         6 3734  800     1200       4.3      13270       33
+    ## 7         7 2630  700      700       4.2      14770        0
     ## 8         8 3840  800      800       4.0      13850        0
-    ## 9         9 2529  700      700       4.0      14640        0
-    ## 10       10 2923  600      600       3.9      14300        0
+    ## 9         9 2923  600      600       3.6      14080        0
+    ## 10       10 2926  800      800       3.6      14810        0
 
 ## Getting help
 
