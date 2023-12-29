@@ -19,6 +19,8 @@ pm <- patchmax$new(
   area_field = 'ha', 
   area_max = 10000)
 
+pm$id_field <- 'id'
+
 pm$reset()$build('5050')$record('X')$plot(return_plot = T) 
 
 bounce <- function(x){
@@ -178,15 +180,25 @@ pm$params <- list(
   sdw = .1, 
   threshold = 'c3 == 1', 
   epw = .5, 
-  exclusion_limit = .7,
+  exclusion_limit = 0.1,
   area_min = 7500,
   constraint_field = 'cost',
   constraint_max = 200000
 )
 
+pm$random_sample(.25)
+pm$search(verbose = T, plot = T)
+pm$reset()
+pm$simulate(7, verbose = T)
+pm$random_sample(1)
+pm$simulate(5)
 pm$reset()$search()
-pm$reset()$search(search_plot = T, verbose = F)
-pm$reset()$search(search_plot = T, verbose = T)
+pm$plot()
+pm$reset()$search()
+pm$reset()$search(verbose = T)
+pm$reset()$search(plot = T, verbose = F)
+pm$reset()$search(plot = T, verbose = T)
+pm$record()$plot()
 
 ani.options(loop = 0, ani.res=100, interval=0.1, ani.width = 1000, ani.height = 600)
 saveVideo({
