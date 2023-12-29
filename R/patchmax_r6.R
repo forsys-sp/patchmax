@@ -17,7 +17,7 @@
 #' @import cppRouting
 #' @import sf
 #' @import furrr
-#' @import assertive
+#' @import checkmate
 #' @rawNamespace import(data.table, except = c("last","first","between"))
 #' @importFrom Rcpp sourceCpp
 #' @importFrom data.table data.table
@@ -91,7 +91,7 @@ patchmax <- R6::R6Class(
       
       # early exit if node is NULL
       if(length(node)==0){
-        message('Invalid build')
+        if(verbose) message('Invalid build')
         private$..stop_switch = TRUE
         return(invisible(self))
       }
@@ -196,10 +196,15 @@ patchmax <- R6::R6Class(
     #' @description Search, build, and record multiple patches in sequence
     #' @param n_projects integer. Number of patches to build
     #'
-    simulate = function(n_projects = 1){
+    simulate = function(n_projects = 1, verbose = F){
       for(i in 1:n_projects){
-        self$search()$build()$record() 
+        if(self$stop_switch){
+          message('No valid seeds remain')
+          break
+        }
+        self$search(verbose = verbose)$build()$record() 
       }
+      pm$stop_switch <- FALSE
       return(invisible(self))
     },
     
@@ -563,8 +568,7 @@ patchmax <- R6::R6Class(
         names(search_values), 
         search = as.numeric(search_values),
         error = search_out$errors
-      ) %>%
-        rename(!!private$..param_id_field := 1)
+      ) %>% rename(!!private$..param_id_field := 1)
       
       pdat <- dplyr::inner_join(
         x = private$..geom, 
@@ -574,17 +578,7 @@ patchmax <- R6::R6Class(
       suppressWarnings(
         pdat_xy <- pdat |> st_centroid()
       )
-      
-      # identify best seed
-      seed <- pdat[pdat$search == max(pdat$search, na.rm=TRUE),]
-      
-      # build best patch
-      best_out = names(search_values)[which.max(search_values)]
-      self$build(best_out)
-      patch_geom <- self$geom %>% 
-        filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
-        summarize()
-      
+
       # plot search results
       p1 <- ggplot() + 
         geom_sf(data = pdat, aes(fill=search), linewidth=0) +
@@ -593,10 +587,22 @@ patchmax <- R6::R6Class(
                 shape = 't', size = 3) +
         geom_sf(data = pdat_xy |> filter(grepl('constraint', error)),
                 shape = 'c', color = 'red', size = 3) +
-        geom_sf(data = suppressWarnings(st_centroid(seed)), size=4, shape=5) +
         theme(legend.position = 'bottom') +
-        theme_void() + 
-        geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
+        theme_void() 
+      
+      # identify best seed
+      if(!is.na(pdat$search) |> sum() > 0){
+        seed <- pdat[pdat$search == max(pdat$search, na.rm=TRUE),]
+        best_out = names(search_values)[which.max(search_values)]
+        self$build(best_out)
+        patch_geom <- self$geom %>% 
+          filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
+          summarize()
+        
+        p1 <- p1 +  
+          geom_sf(data = suppressWarnings(st_centroid(seed)), size=4, shape=5) +
+          geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
+      }
       
       print(p1)
     }
@@ -646,7 +652,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..stop_switch
       } else {
-        assertive::is_logical(value)
+        checkmate::assert_logical(value)
         private$..stop_switch = value
       }
     },
@@ -704,8 +710,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_id_field
       } else {
-        assertive::assert_is_character(value)
-        assertive::is_of_length(value, 1)
+        checkmate::assert_character(value)
         private$..param_id_field <- value
         private$..refresh_net_attr()
       }
@@ -716,8 +721,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_objective_field
       } else {
-        assertive::assert_is_character(value)
-        assertive::is_of_length(value, 1)
+        checkmate::assert_character(value)
         private$..param_objective_field <- value
         private$..refresh_net_attr()
       }
@@ -728,8 +732,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_area_field
       } else {
-        assertive::assert_is_character(value)
-        assertive::is_of_length(value, 1)
+        checkmate::assert_character(value)
         private$..param_area_field <- value
         private$..refresh_net_attr()
       }
@@ -750,6 +753,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_exclusion_limit
       } else {
+        checkmate::assert_numeric(value, lower = 0, upper = 1)
         private$..param_exclusion_limit <- value
         private$..refresh_net_attr()
       }
@@ -770,9 +774,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_threshold_objective_adjust
       } else {
-        assertive::assert_is_numeric(value)
-        assertive::assert_is_of_length(value, 1)
-        assertive::assert_all_are_in_range(value, 0, 1, F, F)
+        checkmate::assert_numeric(value, lower = 0, upper = 1)
         private$..param_threshold_objective_adjust <- value
         private$..refresh_net_attr()
       }
@@ -783,8 +785,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_constraint_field
       } else {
-        assertive::assert_is_character(value)
-        assertive::is_of_length(value, 1)
+        checkmate::assert_character(value)
         private$..param_constraint_field <- value
         private$..refresh_net_attr()
       }
@@ -795,8 +796,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_constraint_max
       } else {
-        assertive::assert_is_numeric(value)
-        assertive::is_of_length(value, 1)
+        checkmate::assert_numeric(value)
         private$..param_constraint_max <- value
         private$..refresh_net_attr()
       }
@@ -807,8 +807,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_constraint_min
       } else {
-        assertive::assert_is_numeric(value)
-        assertive::is_of_length(value, 1)
+        checkmate::assert_numeric(value)
         private$..param_constraint_min <- value
         private$..refresh_net_attr()
       }
@@ -819,9 +818,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_area_max
       } else {
-        assertive::assert_is_numeric(value)
-        assertive::is_of_length(value, 1)
-        assertive::is_positive(value)
+        checkmate::assert_numeric(value, lower = 0)
         private$..param_area_max <- value
         private$..refresh_net_attr()
       }
@@ -832,9 +829,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_area_min
       } else {
-        assertive::assert_is_numeric(value)
-        assertive::is_of_length(value, 1)
-        assertive::is_in_range(value, 0, 1, FALSE, FALSE)
+        checkmate::assert_numeric(value, lower = 0, upper = 1)
         private$..param_area_min <- value
         private$..refresh_net_attr()
       }
@@ -845,9 +840,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_epw
       } else {
-        assertive::assert_is_numeric(value)
-        assertive::assert_is_of_length(value, 1)
-        assertive::assert_all_are_in_range(value, -1, 1, F, F)
+        checkmate::assert_numeric(value, lower = -1, upper = 1)
         private$..param_epw <- value
       }
     },
@@ -857,9 +850,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_sdw
       } else {
-        assertive::assert_is_numeric(value)
-        assertive::assert_is_of_length(value, 1)
-        assertive::assert_all_are_in_range(value, -1, 1, F, F)
+        checkmate::assert_numeric(value, lower = -1, upper = 1)
         private$..param_sdw <- value
       }
     },
@@ -869,7 +860,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_rng_seed
       } else {
-        if((assertive::is_null(value) | assertive::is_numeric(value)) == FALSE){
+        if((checkmate::assert_null(value) | checkmate::assert_numeric(value)) == FALSE){
           stop('Seed must be numeric, integer, or NULL')
         }
         private$..param_rng_seed <- value
@@ -885,7 +876,7 @@ patchmax <- R6::R6Class(
         names(params) <- gsub('..param_','', nm_p)
         str(params)
       } else {
-        assertive::assert_is_list(value)
+        checkmate::assert_list(value)
         for(i in seq_along(value)){
           tryCatch({
             nm = names(value)[i]
