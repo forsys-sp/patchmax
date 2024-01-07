@@ -11,8 +11,7 @@ build_func(
   a_max,
   a_min = -Inf,
   c_max = Inf,
-  c_min = -Inf,
-  c_enforce = TRUE
+  c_min = -Inf
 )
 }
 \arguments{
@@ -26,11 +25,11 @@ build_func(
 
 \item{c_min}{numeric. Minimum secondary constraint of patch}
 
-\item{c_enforce}{logical. Should patches outside of constraint be excluded?}
-
 \item{cpp_graph}{graph object built with cppRouting}
 
 \item{net}{igraph Adjacency network with stand attributes}
+
+\item{c_enforce}{logical. Should patches outside of constraint be excluded?}
 }
 \value{
 data frame of nearest nodes arranged by distance

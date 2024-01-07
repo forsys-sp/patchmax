@@ -23,7 +23,9 @@ simulate_projects(
   P_constraint_max_value = Inf,
   P_constraint_min_value = -Inf,
   sample_frac = 0.1,
-  sample_seed = NULL
+  sample_seed = NULL,
+  verbose = F,
+  write_output = F
 )
 }
 \arguments{
@@ -58,6 +60,8 @@ simulate_projects(
 \item{P_constraint_min_value}{numeric. Project constraint lower value. Default is -Inf}
 
 \item{sample_frac}{numeric 0-1. Portion of stands to search}
+
+\item{write_output}{logical. Write intermediate patch output to file}
 }
 \value{
 list with first element describing patch-level stats and the second

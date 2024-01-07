@@ -23,11 +23,15 @@ pm$plot()
 
 \item{\code{geom}}{Get sf geometry object. Read only}
 
-\item{\code{kill_switch}}{= Flag for stopping patchmax}
+\item{\code{stop_switch}}{= Flag for stopping patchmax}
 
 \item{\code{best}}{Get pending stand id representing best patch seed. Read only}
 
 \item{\code{available_stands}}{Get stands available for treatment. Read only}
+
+\item{\code{search_results}}{Get search results. Read only}
+
+\item{\code{search_errors}}{Get search errors. Read only}
 
 \item{\code{pending_stands}}{Get stands in pending patch. Read only}
 
@@ -129,13 +133,15 @@ Initialize new patchmax object for building patches
 \subsection{Method \code{build()}}{
 Build patch at selected node
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{patchmax$build(node = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$build(node = NULL, verbose = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{node}}{character. Stand ID used to build patch (optional)}
+
+\item{\code{verbose}}{logical. Report additional details}
 }
 \if{html}{\out{</div>}}
 }
@@ -150,21 +156,17 @@ If node is NULL, use stand id found during search
 \subsection{Method \code{search()}}{
 Search for patch seed with highest objective
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{patchmax$search(
-  search_plot = FALSE,
-  show_progress = FALSE,
-  print_errors = FALSE
-)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$search(plot = FALSE, show_progress = FALSE, verbose = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
-\item{\code{search_plot}}{logical Map search results}
+\item{\code{plot}}{logical Map search results}
 
 \item{\code{show_progress}}{logical Show search progress bar}
 
-\item{\code{print_errors}}{logical Print search errors to console}
+\item{\code{verbose}}{logical Print search errors to console}
 }
 \if{html}{\out{</div>}}
 }
@@ -175,13 +177,15 @@ Search for patch seed with highest objective
 \subsection{Method \code{simulate()}}{
 Search, build, and record multiple patches in sequence
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{patchmax$simulate(n_projects = 1)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$simulate(n_projects = 1, verbose = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{n_projects}}{integer. Number of patches to build}
+
+\item{\code{verbose}}{logical Report additional details}
 }
 \if{html}{\out{</div>}}
 }
@@ -220,7 +224,7 @@ Plot patch and stand map
 \subsection{Method \code{record()}}{
 Record selected patch
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{patchmax$record(patch_id = NULL, enforce_constraint = TRUE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{patchmax$record(patch_id = NULL, enforce_constraint = TRUE, write = FALSE)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -229,6 +233,8 @@ Record selected patch
 \item{\code{patch_id}}{integer/character Patch name. If null, add one to highest}
 
 \item{\code{enforce_constraint}}{logical Apply secondary constraint}
+
+\item{\code{write}}{logical Write output to file}
 }
 \if{html}{\out{</div>}}
 }

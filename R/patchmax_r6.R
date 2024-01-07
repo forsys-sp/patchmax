@@ -81,6 +81,7 @@ patchmax <- R6::R6Class(
     # ..........................................................................
     #' @description Build patch at selected node
     #' @param node character. Stand ID used to build patch (optional)
+    #' @param verbose logical. Report additional details
     #' @details If node is NULL, use stand id found during search
     #' 
     build = function(node=NULL, verbose=FALSE){
@@ -109,7 +110,7 @@ patchmax <- R6::R6Class(
       
       # append  stand data
       aux_data <- vertex_attr(private$..net) %>% 
-        select(node = name, 
+        dplyr::select(node = name, 
                private$..param_objective_field, 
                original_area = ..area)
       
@@ -195,8 +196,9 @@ patchmax <- R6::R6Class(
     # ..........................................................................
     #' @description Search, build, and record multiple patches in sequence
     #' @param n_projects integer. Number of patches to build
+    #' @param verbose logical Report additional details
     #'
-    simulate = function(n_projects = 1, verbose = F){
+    simulate = function(n_projects = 1, verbose = FALSE){
       for(i in 1:n_projects){
         if(self$stop_switch){
           message('No valid seeds remain')
@@ -228,9 +230,9 @@ patchmax <- R6::R6Class(
       net <- private$..net
       
       if(apply_threshold){
-        patches = geom %>% filter(..include == 1, ..patch_id != 0) 
+        patches = geom %>% dplyr::filter(..include == 1, ..patch_id != 0) 
       } else {
-        patches = geom %>% filter(..patch_id != 0)
+        patches = geom %>% dplyr::filter(..patch_id != 0)
       }
       
       patches <- patches %>% group_by(..patch_id) %>% summarize()
@@ -238,7 +240,7 @@ patchmax <- R6::R6Class(
       # add include field for plotting
       geom$..include = vertex_attr(
         net, '..include', 
-        match(pull(geom, private$..param_id_field), V(net)$name))
+        match(dplyr::pull(geom, private$..param_id_field), V(net)$name))
       geom$..include = factor(geom$..include, c(0,1))
       
       plot = ggplot() + 
@@ -250,15 +252,15 @@ patchmax <- R6::R6Class(
         theme(legend.position = 'bottom') +
         theme_void() 
       
-      if(!class(geom %>% pull(get(plot_field))) %in% c('character','logical','factor')){
+      if(!class(geom %>% dplyr::pull(get(plot_field))) %in% c('character','logical','factor')){
         plot = plot + scale_fill_gradientn(colors = sf.colors(10))
       }
       
       if(nrow(patches) > 0){
         
         x <- private$..record_patch_stats$seed
-        seeds = geom %>% filter(pull(geom, private$..param_id_field) %in% x) %>% select(..patch_id)
-        excluded <- geom %>% filter(..patch_id != 0, ..include == 0)
+        seeds = geom %>% dplyr::filter(dplyr::pull(geom, private$..param_id_field) %in% x) %>% dplyr::select(..patch_id)
+        excluded <- geom %>% dplyr::filter(..patch_id != 0, ..include == 0)
         
         plot <- plot +
           geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
@@ -295,7 +297,7 @@ patchmax <- R6::R6Class(
       # pull pending patch and stand data
       patches <- private$..pending_patch_stats
       stands <- private$..pending_patch_stands %>%
-        select(!!private$..param_id_field := node, include, objective, area, constraint)
+        dplyr::select(!!private$..param_id_field := node, include, objective, area, constraint)
       
       # record data
       patch_stats <- data.frame(patch_id = patch_id, patches)
@@ -310,7 +312,7 @@ patchmax <- R6::R6Class(
       V(private$..net)$..include[m] = patch_stands$include
       
       # update geometry data
-      m = match(private$..pending_patch_stands$node, pull(private$..geom, private$..param_id_field))
+      m = match(private$..pending_patch_stands$node, dplyr::pull(private$..geom, private$..param_id_field))
       private$..geom$..patch_id[m] = patch_id
       private$..geom$..include[m] = patch_stands$include
       
@@ -341,7 +343,7 @@ patchmax <- R6::R6Class(
       
       stands <- private$..geom %>% 
         st_drop_geometry() %>% 
-        select(-..include) %>%
+        dplyr::select(-..include) %>%
         inner_join(self$patch_stands) %>%
         rename(DoTreat = include)
       
@@ -553,7 +555,7 @@ patchmax <- R6::R6Class(
         s_txt = private$..param_threshold
         id = private$..param_id_field
         all_ids = dplyr::pull(vertex_attr(net), 'name')   
-        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% pull(name)
+        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% dplyr::pull(name)
         V(private$..net)$..include = ifelse(all_ids %in% include_ids, 1, 0)
       } else
         V(private$..net)$..include = 1
@@ -583,9 +585,9 @@ patchmax <- R6::R6Class(
       p1 <- ggplot() + 
         geom_sf(data = pdat, aes(fill=search), linewidth=0) +
         scale_fill_gradientn(colors = sf.colors(10)) + 
-        geom_sf(data = pdat_xy |> filter(grepl('threshold', error)),
+        geom_sf(data = pdat_xy |> dplyr::filter(grepl('threshold', error)),
                 shape = 't', size = 3) +
-        geom_sf(data = pdat_xy |> filter(grepl('constraint', error)),
+        geom_sf(data = pdat_xy |> dplyr::filter(grepl('constraint', error)),
                 shape = 'c', color = 'red', size = 3) +
         theme(legend.position = 'bottom') +
         theme_void() 
@@ -596,7 +598,7 @@ patchmax <- R6::R6Class(
         best_out = names(search_values)[which.max(search_values)]
         self$build(best_out)
         patch_geom <- self$geom %>% 
-          filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
+          dplyr::filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
           summarize()
         
         p1 <- p1 +  
@@ -639,7 +641,7 @@ patchmax <- R6::R6Class(
           mutate(..area = 0) %>%
           mutate(..constraint = 0)
         
-        if(pull(value, private$..param_id_field) %>% n_distinct() < nrow(value)){
+        if(dplyr::pull(value, private$..param_id_field) %>% n_distinct() < nrow(value)){
           stop('Stand IDs must be unique')
         }
         
@@ -829,7 +831,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_area_min
       } else {
-        checkmate::assert_numeric(value, lower = 0, upper = 1)
+        checkmate::assert_numeric(value)
         private$..param_area_min <- value
         private$..refresh_net_attr()
       }
@@ -860,9 +862,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         private$..param_rng_seed
       } else {
-        if((checkmate::assert_null(value) | checkmate::assert_numeric(value)) == FALSE){
-          stop('Seed must be numeric, integer, or NULL')
-        }
+        checkmate::assert(is.null(value) | is.numeric(value))
         private$..param_rng_seed <- value
       }
     },
