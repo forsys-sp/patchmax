@@ -1,7 +1,7 @@
 Package: patchmax
 Type: Package
 Title: Patchmax
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: 
   c(
     person(given = "Cody",
@@ -36,7 +36,7 @@ Imports:
   furrr,
   future,
   igraph,
-  assertive,
+  checkmate,
   proxy,
   Rcpp, 
   RcppParallel
