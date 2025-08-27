@@ -20,12 +20,12 @@ create_network <- function(
   
   # identify adjacency
   adj <- switch(method, 
-         rook = st_buffer(geom, dist = 1) %>% 
+         buffer = st_buffer(geom, dist = 1) %>% 
            st_overlaps(sparse = TRUE) %>% 
            data.frame(),
-         queen = st_rook(geom) %>% 
+         rook = st_rook(geom) %>% 
            data.frame(), 
-         buffer = st_queen(geom) %>% 
+         queen = st_queen(geom) %>% 
            data.frame())
   
   # build adjacency network
