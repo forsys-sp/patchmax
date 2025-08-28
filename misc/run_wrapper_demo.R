@@ -6,7 +6,7 @@ library(furrr)
 stands_available = patchmax::test_forest |> mutate(weightedPriority = p4)
 stand_id_field = 'id'
 stand_area_field = 'ha'
-patchmax_proj_size = 1000
+patchmax_proj_size = 10000
 patchmax_proj_size_min = 500
 patchmax_proj_number = 3
 stand_threshold = "p3 >= 0.5"
@@ -15,6 +15,8 @@ constraint_field = 'p1'
 proj_target_value = Inf
 proj_target_min_value = -Inf
 
+
+adj_net <- stands_available |> patchmax::create_adj_network(id_field = 'id', method = 'buffer')
 
 # run patchmax
 plan(multisession(workers = 8))
@@ -30,11 +32,16 @@ patchmax_out <- patchmax::simulate_projects(
   SDW = patchmax_SDW,
   P_constraint = stands_available |> dplyr::pull(!!constraint_field),
   P_constraint_max_value = proj_target_value,
-  P_constraint_min_value = proj_target_min_value
+  P_constraint_min_value = proj_target_min_value,
+  adj_method = 'buffer',
+  adj_network = adj_net,
 )
 
 patchmax_out
 
+stands_available |> 
+  left_join(patchmax_out[[2]] |> select(id = Stands, proj = Project) |> mutate(id = as.numeric(id))) |>
+  ggplot() + geom_sf(aes(fill = weightedPriority, color = factor(proj)), linewidth = .5)
 
 # List of 2
 # $ :'data.frame':	3 obs. of  5 variables:

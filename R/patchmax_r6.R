@@ -44,14 +44,18 @@ patchmax <- R6::R6Class(
     #' @param objective_field character Field name containing objective values
     #' @param area_field character Field name containing area
     #' @param area_max numeric Size of patch
+    #' @param adj_method string Method for calculating adjacency
+    #' @param adj_network igraph Optional pre-generated adjacency network
     #' @param ... Additional parameters to pass to `patchmax$params`
     #'
     initialize = function(
       geom, 
-      id_field=NULL, 
+      id_field=NULL,
       objective_field=NULL, 
       area_field=NULL, 
       area_max=NULL,
+      adj_method='queen',
+      adj_network=NULL,
       ...
     ){
 
@@ -66,7 +70,16 @@ patchmax <- R6::R6Class(
       self$geom <- geom
 
       # build adjacency network
-      private$..net <- create_network(geom = private$..geom, id_field = id_field)
+      if(!is.null(adj_network)) {
+        message('Using provided adjacency network')
+        private$..net <- adj_network
+      } else {
+        message('Building adjacency network from geometry')
+        private$..net <- create_adj_network(
+          geom = private$..geom, 
+          id_field = id_field, 
+          method = adj_method)
+      }
       
       # add fields to adjacency network
       a <- vertex_attr(private$..net) %>% data.frame()

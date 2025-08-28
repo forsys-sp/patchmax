@@ -24,6 +24,8 @@ simulate_projects(
   P_constraint_min_value = -Inf,
   sample_frac = 0.1,
   sample_seed = NULL,
+  adj_method = "queen",
+  adj_network = NULL,
   verbose = F,
   write_output = F
 )

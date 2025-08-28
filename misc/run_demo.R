@@ -26,6 +26,14 @@ bw.colors <- function(n){
 plot(shp[,'p5'], nbreaks = 10, pal = bw.colors)
 plot(shp[,'t2'], pal = c(NA,'red'), border=NA)
 
+plot(shp$geometry)
+
+net <- create_adj_network(shp, 'id')
+el <- net |> as_edgelist()
+
+net <- create_adj_network(shp, 'id', adj_edgelist = el)
+
+
 
 # shp <- st_read('~/Downloads/GreatBasinSmaller.gdb/', 'GreatBasinHexnet')
 # shp <- shp |> filter(PYROME == 19)
@@ -63,6 +71,17 @@ pm <- patchmax$new(
   area_min = 200,
   area_max = 10000)
 
+
+# create new patchmax object
+pm <- patchmax$new(
+  geom = shp,
+  id_field = 'id', 
+  objective_field = 'p5', 
+  area_field = 'ha', 
+  threshold = 'c3 == 1',
+  area_min = 200,
+  area_max = 10000, 
+  adj_network = net)
 
 pm$reset()$plot()
 pm$reset()$build(2833)$record()$plot()
