@@ -8,32 +8,49 @@
 #' @importFrom proxy dist
 #' @importFrom igraph as_edgelist graph_from_data_frame
 #' @importFrom sf st_buffer st_overlaps st_centroid st_coordinates
+#' @export
 #' @return adjacency network saved as an igraph network object
 
-create_network <- function(
+create_adj_network <- function(
     geom, 
     id_field, 
-    method = 'queen'
+    method = 'queen',
+    adj_edgelist = NULL
   ) {
   
   id = pull(geom, id_field)
   
   # identify adjacency
-  adj <- switch(method, 
-         buffer = st_buffer(geom, dist = 1) %>% 
-           st_overlaps(sparse = TRUE) %>% 
-           data.frame(),
-         rook = st_rook(geom) %>% 
-           data.frame(), 
-         queen = st_queen(geom) %>% 
-           data.frame())
   
-  # build adjacency network
-  vert <- geom %>% st_drop_geometry() %>% select(id_field)
-  net <- data.frame(A = id[adj$row.id], B = id[adj$col.id]) %>%
-    graph_from_data_frame(
-      directed = TRUE, 
-      vertices = vert)
+  if(is.null(adj_edgelist)){
+    adj <- switch(method, 
+                  buffer = st_buffer(geom, dist = 1) %>% 
+                    st_overlaps(sparse = TRUE) %>% 
+                    data.frame(),
+                  rook = st_rook(geom) %>% 
+                    data.frame(), 
+                  queen = st_queen(geom) %>% 
+                    data.frame())
+    
+    # build adjacency network
+    vert <- geom %>% st_drop_geometry() %>% select(id_field)
+    net <- data.frame(A = id[adj$row.id], B = id[adj$col.id]) %>%
+      graph_from_data_frame(
+        directed = TRUE, 
+        vertices = vert)
+    
+  } else {
+    
+    # build adjacency network from adjacency list
+    if(ncol(adj_edgelist) != 2) stop('Adjacency edgelist must be table with two columns')
+    
+    vert <- geom %>% st_drop_geometry() %>% select(id_field)
+    net <- data.frame(A = adj_edgelist[,1], B = adj_edgelist[,2]) %>%
+      graph_from_data_frame(
+        directed = TRUE, 
+        vertices = vert)
+    
+  }
 
   # calculate centroid coordinates
   suppressWarnings({
@@ -310,7 +327,7 @@ build_func <- function(
     names(search_out) <- nodes
     
     # identify invalid builds
-    errors <- search_out |> map_chr(\(x) ifelse(is.character(x), x, NA))
+    errors <- search_out |> purrr::map_chr(\(x) ifelse(is.character(x), x, NA))
     
     if(verbose){
       tab <- table(errors)
@@ -318,7 +335,7 @@ build_func <- function(
     }
     
     # return valid builds
-    out <- search_out |> map_dbl(\(x) ifelse(is.numeric(x), x, NA))
+    out <- search_out |> purrr::map_dbl(\(x) ifelse(is.numeric(x), x, NA))
     
     return(list(values = out, errors = errors))
 }

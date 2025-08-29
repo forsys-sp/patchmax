@@ -44,14 +44,18 @@ patchmax <- R6::R6Class(
     #' @param objective_field character Field name containing objective values
     #' @param area_field character Field name containing area
     #' @param area_max numeric Size of patch
+    #' @param adj_method string Method for calculating adjacency
+    #' @param adj_network igraph Optional pre-generated adjacency network
     #' @param ... Additional parameters to pass to `patchmax$params`
     #'
     initialize = function(
       geom, 
-      id_field=NULL, 
+      id_field=NULL,
       objective_field=NULL, 
       area_field=NULL, 
       area_max=NULL,
+      adj_method='queen',
+      adj_network=NULL,
       ...
     ){
 
@@ -66,12 +70,23 @@ patchmax <- R6::R6Class(
       self$geom <- geom
 
       # build adjacency network
-      private$..net <- create_network(geom = private$..geom, id_field = id_field)
+      if(!is.null(adj_network)) {
+        message('Using provided adjacency network')
+        ids <- private$..geom |> pull(!!id_field)
+        adj_network <- igraph::delete_vertices(adj_network, (V(adj_network)$name %in% ids) == FALSE) # delete stands in adj network not found in stand file
+        private$..net <- adj_network
+      } else {
+        message(paste0('Building adjacency network from geometry using ', adj_method, ' method'))
+        private$..net <- create_adj_network(
+          geom = private$..geom, 
+          id_field = id_field, 
+          method = adj_method)
+      }
       
       # add fields to adjacency network
       a <- vertex_attr(private$..net) %>% data.frame()
       b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
-      vertex_attr(private$..net) <- left_join(a, b, by='name')
+      vertex_attr(private$..net) <- inner_join(a, b, by='name')
       
       # save optional parameters
       self$params <- list(...)
@@ -478,7 +493,7 @@ patchmax <- R6::R6Class(
     #' Update network adjacency network object
     ..get_net = function(){
       net <- private$..net
-      net <- delete_vertices(net, V(net)$..patch_id > 0)
+      net <- igraph::delete_vertices(net, V(net)$..patch_id > 0)
       return(net)
     },
     

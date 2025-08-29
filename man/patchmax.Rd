@@ -105,6 +105,8 @@ Initialize new patchmax object for building patches
   objective_field = NULL,
   area_field = NULL,
   area_max = NULL,
+  adj_method = "queen",
+  adj_network = NULL,
   ...
 )}\if{html}{\out{</div>}}
 }
@@ -121,6 +123,10 @@ Initialize new patchmax object for building patches
 \item{\code{area_field}}{character Field name containing area}
 
 \item{\code{area_max}}{numeric Size of patch}
+
+\item{\code{adj_method}}{string Method for calculating adjacency}
+
+\item{\code{adj_network}}{igraph Optional pre-generated adjacency network}
 
 \item{\code{...}}{Additional parameters to pass to \code{patchmax$params}}
 }
