@@ -10,7 +10,7 @@ library(sf)
 shp <- patchmax::test_forest %>% 
   # filter(row > 23, row <= 42, col > 25, col <= 42) %>%
   # filter(row > 10, row <= 20, col > 10, col <= 20) %>%
-  filter(m1 == 3, t2 == 1) |>
+  filter(m1 == 3) |>
   mutate(cost = ((p2 + p4 - c1) * 1000) + 3000) %>%
   mutate(p5 = p4 * (1 - p3)) %>%
   mutate(p5 = p5 * p5)
@@ -24,42 +24,15 @@ bw.colors <- function(n){
   grey.colors(n, start = 0, end = 1, rev = T)
 }
 plot(shp[,'p5'], nbreaks = 10, pal = bw.colors)
-plot(shp[,'t2'], pal = c(NA,'red'), border=NA)
 
 plot(shp$geometry)
 
 net <- create_adj_network(shp, 'id')
-el <- net |> as_edgelist()
+plot(net, vertex.label = NA, vertex.size = 1, edge.arrow.size = 0)
 
+el <- net |> igraph::as_edgelist()
 net <- create_adj_network(shp, 'id', adj_edgelist = el)
-
-
-
-# shp <- st_read('~/Downloads/GreatBasinSmaller.gdb/', 'GreatBasinHexnet')
-# shp <- shp |> filter(PYROME == 19)
-# pm <- patchmax$new(
-#   geom = shp |> filter(Avail == 1),
-#   id_field = 'hex_id', 
-#   objective_field = 'expAL', 
-#   area_field = 'Area_ha', 
-#   area_min = 200,
-#   area_max = 10000)
-# 
-# library(cppRouting)
-# el <- pm$net |> igraph::as_data_frame()
-# mg <- makegraph(el)
-# mgc <- cpp_contract(mg)
-# RcppParallel::setThreadOptions(numThreads = 4)
-# get_distance_matrix(mg, from = mgc$dict$ref, to = mgc$dict$ref)
-# get_distance_matrix(mgc, from = mgc$dict$ref, to = mgc$dict$ref)
-# 
-# library(microbenchmark)
-# microbenchmark(
-#   a=dmat1 <- get_distance_matrix(mg, from = mgc$dict$ref, to = mgc$dict$ref),
-#   b=dmat2 <- get_distance_matrix(mgc, from = mgc$dict$ref, to = mgc$dict$ref),
-#   c=dmat2 <- get_distance_matrix(mgc, from = mgc$dict$ref, to = mgc$dict$ref, algorithm = 'mch'),
-#   times=1)
-
+plot(net, vertex.label = NA, vertex.size = 1, edge.arrow.size = 0)
 
 # create new patchmax object
 pm <- patchmax$new(
@@ -71,8 +44,18 @@ pm <- patchmax$new(
   area_min = 200,
   area_max = 10000)
 
+# create new patchmax object w pre-generated network
+pm <- patchmax$new(
+  geom = shp,
+  id_field = 'id', 
+  objective_field = 'p5', 
+  area_field = 'ha', 
+  threshold = 'c3 == 1',
+  area_min = 200,
+  area_max = 10000, 
+  adj_method = 'buffer')
 
-# create new patchmax object
+# create new patchmax object w pre-generated network
 pm <- patchmax$new(
   geom = shp,
   id_field = 'id', 
@@ -84,12 +67,8 @@ pm <- patchmax$new(
   adj_network = net)
 
 pm$reset()$plot()
-pm$reset()$build(2833)$record()$plot()
-pm$reset()$build(2333)$record()$plot()
-pm$reset()$build(2333)
-
+pm$search()$build()$record()$plot()
 pm$reset()$search()$build()$record(write=F)$plot()
-
 pm$params <- list(sdw = 0)
 
 pm$net

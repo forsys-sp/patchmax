@@ -72,9 +72,11 @@ patchmax <- R6::R6Class(
       # build adjacency network
       if(!is.null(adj_network)) {
         message('Using provided adjacency network')
+        ids <- private$..geom |> pull(!!id_field)
+        adj_network <- igraph::delete_vertices(adj_network, (V(adj_network)$name %in% ids) == FALSE) # delete stands in adj network not found in stand file
         private$..net <- adj_network
       } else {
-        message('Building adjacency network from geometry')
+        message(paste0('Building adjacency network from geometry using ', adj_method, ' method'))
         private$..net <- create_adj_network(
           geom = private$..geom, 
           id_field = id_field, 
@@ -84,7 +86,7 @@ patchmax <- R6::R6Class(
       # add fields to adjacency network
       a <- vertex_attr(private$..net) %>% data.frame()
       b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
-      vertex_attr(private$..net) <- left_join(a, b, by='name')
+      vertex_attr(private$..net) <- inner_join(a, b, by='name')
       
       # save optional parameters
       self$params <- list(...)
@@ -491,7 +493,7 @@ patchmax <- R6::R6Class(
     #' Update network adjacency network object
     ..get_net = function(){
       net <- private$..net
-      net <- delete_vertices(net, V(net)$..patch_id > 0)
+      net <- igraph::delete_vertices(net, V(net)$..patch_id > 0)
       return(net)
     },
     
