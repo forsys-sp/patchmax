@@ -78,8 +78,11 @@ igraph::delete_vertices(pm$net, pm$patch_stands$id) |> plot()
 
 # plot priority
 pm$plot()
-pm$build(1311)
-pm$search(print_errors = T)
+pm$random_sample(sample_frac = 0.1)
+pm$search()
+pm$build(5126)
+pm$record()
+pm$plot()
 
 # search, build, record, and plot best patch
 pm$search()$build()$record()$plot()

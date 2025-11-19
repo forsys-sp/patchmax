@@ -7,7 +7,7 @@
 #' geom <- patchmax::test_forest
 #' pm <- patchmax$new(geom, 'id', 'p1', 'ha', 20000)
 #' pm$params = list(constraint_field = 'p4', constraint_max = 50, area_min=10000)
-#' pm$search(sample_frac = .1, show_progress = T)
+#' pm$search()
 #' pm$build()$record()
 #' pm$plot()
 #'
@@ -124,7 +124,8 @@ patchmax <- R6::R6Class(
         c_min = private$..param_constraint_min)
       
       # append  stand data
-      aux_data <- vertex_attr(private$..net) %>% 
+      browser()
+      aux_data <- vertex_attr(private$..net) %>% data.frame() %>%
         dplyr::select(node = name, 
                private$..param_objective_field, 
                original_area = ..area)

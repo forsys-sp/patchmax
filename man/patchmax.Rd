@@ -11,7 +11,7 @@ view class parameters or set multiple parameters at once (using a named list).
 geom <- patchmax::test_forest
 pm <- patchmax$new(geom, 'id', 'p1', 'ha', 20000)
 pm$params = list(constraint_field = 'p4', constraint_max = 50, area_min=10000)
-pm$search(sample_frac = .1, show_progress = T)
+pm$search()
 pm$build()$record()
 pm$plot()
 
