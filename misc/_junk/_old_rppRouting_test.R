@@ -8,7 +8,7 @@ test_forest <- forsys::test_forest
 # test_forest <- test_forest %>% filter(!stand_id %in% c(4050:4070))
 data <- test_forest %>% st_drop_geometry() %>% as.data.frame()
 adj <- Patchmax::calculate_adj(test_forest, St_id = test_forest$stand_id, calc_dst = TRUE)
-vertex_attr(adj) <- data %>% dplyr::select(matches('priority'))
+igraph::vertex_attr(adj) <- data %>% dplyr::select(matches('priority'))
 xy <- sf::st_centroid(test_forest) %>% sf::st_coordinates() %>% as.data.frame()
 nodes <- V(adj) %>% as_ids() %>% as.numeric()
 

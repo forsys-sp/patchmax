@@ -84,9 +84,9 @@ patchmax <- R6::R6Class(
       }
       
       # add fields to adjacency network
-      a <- vertex_attr(private$..net) %>% data.frame()
-      b <- st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
-      vertex_attr(private$..net) <- inner_join(a, b, by='name')
+      a <- igraph::vertex_attr(private$..net) %>% data.frame()
+      b <- sf::st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
+      igraph::vertex_attr(private$..net) <- inner_join(a, b, by='name')
       
       # save optional parameters
       self$params <- list(...)
@@ -124,7 +124,7 @@ patchmax <- R6::R6Class(
         c_min = private$..param_constraint_min)
       
       # append  stand data
-      aux_data <- vertex_attr(private$..net) %>% data.frame() %>%
+      aux_data <- igraph::vertex_attr(private$..net) %>% data.frame() %>%
         dplyr::select(node = name, 
                private$..param_objective_field, 
                original_area = ..area)
@@ -253,7 +253,7 @@ patchmax <- R6::R6Class(
       patches <- patches %>% group_by(..patch_id) %>% summarize()
       
       # add include field for plotting
-      geom$..include = vertex_attr(
+      geom$..include = igraph::vertex_attr(
         net, '..include', 
         match(dplyr::pull(geom, private$..param_id_field), V(net)$name))
       geom$..include = factor(geom$..include, c(0,1))
@@ -279,7 +279,7 @@ patchmax <- R6::R6Class(
         
         plot <- plot +
           geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
-          geom_sf(data=suppressWarnings(st_centroid(excluded)), shape=4, size=1, alpha=0.5) +
+          geom_sf(data=suppressWarnings(sf::st_centroid(excluded)), shape=4, size=1, alpha=0.5) +
           geom_sf_label(data=seeds, aes(label=..patch_id), label.r = unit(.5, "lines"))
       }
       
@@ -322,7 +322,7 @@ patchmax <- R6::R6Class(
       private$..record_patch_stands <- bind_rows(private$..record_patch_stands, patch_stands)
       
       # update adjacency network
-      m = match(private$..pending_patch_stands$node, vertex_attr(private$..net, 'name'))
+      m = match(private$..pending_patch_stands$node, igraph::vertex_attr(private$..net, 'name'))
       V(private$..net)$..patch_id[m] = patch_id
       V(private$..net)$..include[m] = patch_stands$include
       
@@ -357,7 +357,7 @@ patchmax <- R6::R6Class(
     summarize = function(group_vars = NULL, sum_vars = NULL){
       
       stands <- private$..geom %>% 
-        st_drop_geometry() %>% 
+        sf::st_drop_geometry() %>% 
         dplyr::select(-..include) %>%
         inner_join(self$patch_stands) %>%
         rename(DoTreat = include)
@@ -521,10 +521,10 @@ patchmax <- R6::R6Class(
         # node = cpp_graph$dict$ref, 
         node = nodes,
         dist = NA, 
-        area = vertex_attr(net, '..area', i), 
-        include = vertex_attr(net, '..include', i),
-        objective = vertex_attr(net, '..objective', i), 
-        constraint = vertex_attr(net, '..constraint', i),
+        area = igraph::vertex_attr(net, '..area', i), 
+        include = igraph::vertex_attr(net, '..include', i),
+        objective = igraph::vertex_attr(net, '..objective', i), 
+        constraint = igraph::vertex_attr(net, '..constraint', i),
         constraint_met = TRUE,
         row.names = NULL) 
       
@@ -548,20 +548,20 @@ patchmax <- R6::R6Class(
       
       # set objective values
       if(!is.null(private$..param_objective_field)){
-        obj <- vertex_attr(private$..net, private$..param_objective_field)
-        vertex_attr(private$..net, name = '..objective') <- obj
+        obj <- igraph::vertex_attr(private$..net, private$..param_objective_field)
+        igraph::vertex_attr(private$..net, name = '..objective') <- obj
       }
       
       # set area values
       if(!is.null(private$..param_area_field)){
-        vertex_attr(private$..net, name = '..area') <- 
-          vertex_attr(private$..net, private$..param_area_field)
+        igraph::vertex_attr(private$..net, name = '..area') <- 
+          igraph::vertex_attr(private$..net, private$..param_area_field)
       }
       
       # set constraint values
       if(!is.null(private$..param_constraint_field)){
-        vertex_attr(private$..net, name = '..constraint') <- 
-          vertex_attr(private$..net, private$..param_constraint_field)
+        igraph::vertex_attr(private$..net, name = '..constraint') <- 
+          igraph::vertex_attr(private$..net, private$..param_constraint_field)
       }
       
       # set threshold values
@@ -569,8 +569,8 @@ patchmax <- R6::R6Class(
         net <- private$..net
         s_txt = private$..param_threshold
         id = private$..param_id_field
-        all_ids = dplyr::pull(vertex_attr(net), 'name')   
-        include_ids = subset(vertex_attr(net), eval(parse(text = s_txt))) %>% dplyr::pull(name)
+        all_ids = dplyr::pull(igraph::vertex_attr(net), 'name')   
+        include_ids = subset(igraph::vertex_attr(net), eval(parse(text = s_txt))) %>% dplyr::pull(name)
         V(private$..net)$..include = ifelse(all_ids %in% include_ids, 1, 0)
       } else
         V(private$..net)$..include = 1
@@ -593,7 +593,7 @@ patchmax <- R6::R6Class(
         by = private$..param_id_field)
       
       suppressWarnings(
-        pdat_xy <- pdat |> st_centroid()
+        pdat_xy <- pdat |> sf::st_centroid()
       )
 
       # plot search results
@@ -617,7 +617,7 @@ patchmax <- R6::R6Class(
           summarize()
         
         p1 <- p1 +  
-          geom_sf(data = suppressWarnings(st_centroid(seed)), size=4, shape=5) +
+          geom_sf(data = suppressWarnings(sf::st_centroid(seed)), size=4, shape=5) +
           geom_sf(data=patch_geom, fill=NA, color='black', linewidth=2)
       }
       
@@ -682,7 +682,7 @@ patchmax <- R6::R6Class(
     #' @field available_stands Get stands available for treatment. Read only
     available_stands = function(){
       net <- private$..get_net()
-      vertex_attr(net, 'name')
+      igraph::vertex_attr(net, 'name')
     },
     
     #' @field search_results Get search results. Read only

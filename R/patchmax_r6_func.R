@@ -25,7 +25,7 @@ create_adj_network <- function(
   if(is.null(adj_edgelist)){
     adj <- switch(method, 
                   buffer = st_buffer(geom, dist = 1) %>% 
-                    st_overlaps(sparse = TRUE) %>% 
+                    sf::st_overlaps(sparse = TRUE) %>% 
                     data.frame(),
                   rook = st_rook(geom) %>% 
                     data.frame(), 
@@ -33,7 +33,7 @@ create_adj_network <- function(
                     data.frame())
     
     # build adjacency network
-    vert <- geom %>% st_drop_geometry() %>% select(id_field)
+    vert <- geom %>% sf::st_drop_geometry() %>% select(id_field)
     net <- data.frame(A = id[adj$row.id], B = id[adj$col.id]) %>%
       graph_from_data_frame(
         directed = TRUE, 
@@ -44,7 +44,7 @@ create_adj_network <- function(
     # build adjacency network from adjacency list
     if(ncol(adj_edgelist) != 2) stop('Adjacency edgelist must be table with two columns')
     
-    vert <- geom %>% st_drop_geometry() %>% select(id_field)
+    vert <- geom %>% sf::st_drop_geometry() %>% select(id_field)
     net <- data.frame(A = adj_edgelist[,1], B = adj_edgelist[,2]) %>%
       graph_from_data_frame(
         directed = TRUE, 
@@ -55,8 +55,8 @@ create_adj_network <- function(
   # calculate centroid coordinates
   suppressWarnings({
     xy <- geom %>% 
-      st_centroid() %>% 
-      st_coordinates() %>% 
+      sf::st_centroid() %>% 
+      sf::st_coordinates() %>% 
       as.data.frame()
     xy$name <- id
   })
@@ -106,8 +106,8 @@ sample_func <- function(
     # sample using regular spatial grid or as a simple random sample
     if(spatial_grid){
       set.seed(rng_seed)
-      pt_grd = st_sample(geom, size = sample_n, type = 'regular')
-      nodes <- st_join(st_as_sf(pt_grd), geom) %>% pull(id_field)
+      pt_grd = sf::st_sample(geom, size = sample_n, type = 'regular')
+      nodes <- sf::st_join(sf::st_as_sf(pt_grd), geom) %>% pull(id_field)
     } else {
       nodes = geom[sort(sample(1:nrow(geom), sample_n)),] %>% pull(id_field)
     }
@@ -180,7 +180,7 @@ distance_func <- function(
   el$dist <- E(net)$dist
   
   # pull objective score of tie alter standardize range from 0 to 1
-  el$objective <- vertex_attr(net, '..objective', match(el$to, V(net)$name))
+  el$objective <- igraph::vertex_attr(net, '..objective', match(el$to, V(net)$name))
   el$objective <- el$objective %>% range01()
   
   # modify distance based on alter objective score
@@ -189,7 +189,7 @@ distance_func <- function(
   el$dist_adj <- el$dist ^ objective_mod
   
   # pull exclude score from tie alter
-  el$exclude <- vertex_attr(net, '..include', match(el$to, V(net)$name))
+  el$exclude <- igraph::vertex_attr(net, '..include', match(el$to, V(net)$name))
 
   # modify distance based on exclusion status
   # OLD: el$dist_adj <- el$dist_adj * ifelse(el$exclude, base_fact^epw, 1)
@@ -387,7 +387,7 @@ range01 <- function(x){
 #' @importFrom sf st_relate
 
 st_rook = function(geom){
-  st_relate(geom, geom, pattern = "F***1****")
+  sf::st_relate(geom, geom, pattern = "F***1****")
 }
 
 #' Helper function to calculate queen adjacency in geometry
@@ -397,6 +397,6 @@ st_rook = function(geom){
 #' @importFrom sf st_relate
 
 st_queen <- function(geom){
-  st_relate(geom, geom, pattern = "F***T****")
+  sf::st_relate(geom, geom, pattern = "F***T****")
 }
 
