@@ -124,7 +124,6 @@ patchmax <- R6::R6Class(
         c_min = private$..param_constraint_min)
       
       # append  stand data
-      browser()
       aux_data <- vertex_attr(private$..net) %>% data.frame() %>%
         dplyr::select(node = name, 
                private$..param_objective_field, 
