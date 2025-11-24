@@ -44,11 +44,11 @@ library(dplyr)
 library(sf)
 library(purrr)
 
-geom <- patchmax::test_forest %>% 
+geom <- patchmax::test_forest |> 
   filter(row > 20, row <= 40, col > 20, col <= 40)
 
-geom %>% 
-  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]')) %>%
+geom |> 
+  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]')) |>
   plot(max.plot = 20, border=NA)
 ```
 
@@ -60,7 +60,7 @@ secondary constraint building patches. In this example, treatment costs
 range between 500 and 5000 dollars per 100 ha stand.
 
 ``` r
-geom <- geom %>% mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
+geom <- geom |> mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
 plot(geom[,'cost'], border=NA)
 ```
 

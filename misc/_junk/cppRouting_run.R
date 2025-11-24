@@ -15,7 +15,7 @@ geom$stand_id <- paste0(geom$stand_id,'a')
 stands <- geom
 
 # create new patch generator
-patchmax <- stands %>% patchmax_generator$new(id_field = 'stand_id')
+patchmax <- stands |> patchmax_generator$new(id_field = 'stand_id')
 
 # set needed parameters
 patchmax$obj_field = 'priority3'
@@ -79,7 +79,7 @@ saveVideo(expr = {
     p_best <- grow_project_func(cpp_graph, net = adj_mod, v = v_best, proj_area = psize)
 
     geom$exclude <- V(adj_mod)$exclude
-    geom_sub <- geom %>% filter(stand_id %in% p_best$node)
+    geom_sub <- geom |> filter(stand_id %in% p_best$node)
     p <- plot_project(geom, adj_mod, p_best, 'priority5', plot = F) + labs(title=glue::glue('epw: {i}'))
     print(p)
   }
@@ -92,7 +92,7 @@ v_best <- V(adj_mod)$name[which(V(adj_mod)$name == names(which.max(search)))]
 
 
 
-data <- geom %>% st_drop_geometry() %>% as.data.frame()
+data <- geom |> st_drop_geometry() |> as.data.frame()
 
 ############ CIRCLE SEARCH EXAMPLE ################
 
@@ -105,8 +105,8 @@ pfield <- 'priority2'
 
 adj_mod <- set_threshold(adj, V(adj)$threshold2 == 0, area_penality=0, obj_penality=0)
 
-circle_vertices <- circleVertices(50, 50, radius = 30, npoints = 300) %>% 
-  round() %>% apply(1, paste, collapse = '') %>% as.integer()
+circle_vertices <- circleVertices(50, 50, radius = 30, npoints = 300) |> 
+  round() |> apply(1, paste, collapse = '') |> as.integer()
 i <- circle_vertices[27]
 ani.options(interval = 0.05)
 
@@ -115,7 +115,7 @@ saveVideo(expr = {
     print(i)
     cpp_graph <- build_graph_func(adj_mod, pfield, sdw)
     cpp_nn <- grow_project_func(cpp_graph, adj_mod, v = i, proj_area = psize)
-    obj <- sum(V(adj_mod)$priority1[as.integer(cpp_nn$node)]) %>% round()
+    obj <- sum(V(adj_mod)$priority1[as.integer(cpp_nn$node)]) |> round()
     p1 <- plot_project(geom, adj_mod, cpp_nn, pfield, plot = F) + theme_void() + 
       theme(plot.title = element_text(hjust = 0.5, vjust = - 4), 
             plot.subtitle = element_text(hjust = 0.5, vjust = - 5))
@@ -149,7 +149,7 @@ saveVideo(expr = {
     # plot_project(geom, adj_mod, cpp_nn, pfield, search, plot=T)
     
     proj_ids <- bind_rows(proj_ids, 
-      geom %>% filter(stand_id %in% cpp_nn$node) %>% summarize() %>% mutate(id = i))
+      geom |> filter(stand_id %in% cpp_nn$node) |> summarize() |> mutate(id = i))
     
     p <- plot_project(geom, adj_mod, cpp_nn, pfield, plot=F, pname = i)
     p <- p + geom_sf(data = proj_ids, fill=NA, linewidth=0.5, color='black') + geom_sf_text(data = proj_ids, aes(label = id))

@@ -16,12 +16,12 @@ library(proxy)
 library(cppRouting)
 
 data("test_forest")
-stands <- test_forest %>% st_drop_geometry() 
+stands <- test_forest |> st_drop_geometry() 
 
 kn = 1000
 
 # extract polygon centroids
-xy <- st_centroid(test_forest) %>% st_coordinates() %>% as.data.frame()
+xy <- st_centroid(test_forest) |> st_coordinates() |> as.data.frame()
 
 adj = Patchmax::calculate_adj(
   Shapefile = test_forest, 
@@ -122,7 +122,7 @@ generate_outputs <- simulate_projects(
   Sample_seed = 123
   )
 
-generate_outputs[[1]] %>% dplyr::mutate(Density = Objective/TotalArea * 1000)
+generate_outputs[[1]] |> dplyr::mutate(Density = Objective/TotalArea * 1000)
 generate_outputs[[2]]
 
 geom$Project <- generate_outputs[[2]]$Project[match(geom$cell_id, generate_outputs[[2]]$Stands)]
@@ -133,25 +133,25 @@ plot(geom[,'DoTreat'], border=rgb(0,0,0,.1))
 
 # summarize projects
 generate_outputs[[1]]
-generate_outputs[[2]] %>% group_by(Project) %>% summarize(Area = sum(Area))
-proj_summary <- generate_outputs[[2]] %>% 
-  group_by(Project, DoTreat) %>% 
-  summarize(Area = sum(Area)) %>% 
-  tidyr::pivot_wider(id_cols = Project, names_from = DoTreat, values_from = Area) %>%
-  dplyr::rename(NoTrt = `0`, Trt = `1`) %>%
-  tidyr::replace_na(list(NoTrt = 0, Trt = 0)) %>%
+generate_outputs[[2]] |> group_by(Project) |> summarize(Area = sum(Area))
+proj_summary <- generate_outputs[[2]] |> 
+  group_by(Project, DoTreat) |> 
+  summarize(Area = sum(Area)) |> 
+  tidyr::pivot_wider(id_cols = Project, names_from = DoTreat, values_from = Area) |>
+  dplyr::rename(NoTrt = `0`, Trt = `1`) |>
+  tidyr::replace_na(list(NoTrt = 0, Trt = 0)) |>
   mutate(PctTrt = round(Trt/(Trt+NoTrt) * 100))
 proj_summary
-generate_outputs[[2]] %>% filter(DoTreat == 0) %>% left_join(geom, by=c('Stands'='stand_id'))
+generate_outputs[[2]] |> filter(DoTreat == 0) |> left_join(geom, by=c('Stands'='stand_id'))
 
 # map projects
 col <- colorRampPalette(colors=rev(c('steelblue1','yellow','orange','red','purple')))
-geom2 <- geom %>% left_join(generate_outputs[[2]] %>% dplyr::rename(stand_id = Stands))
-geom3 <- geom2 %>% group_by(Project) %>% summarize_if(is.numeric, sum)
-geom3 %>% left_join(proj_summary) %>%
+geom2 <- geom |> left_join(generate_outputs[[2]] |> dplyr::rename(stand_id = Stands))
+geom3 <- geom2 |> group_by(Project) |> summarize_if(is.numeric, sum)
+geom3 |> left_join(proj_summary) |>
   ggplot() + geom_sf(aes(fill=Project)) + geom_sf_label(aes(label=Project))
 
-geom3 %>% st_write('~/Dropbox/!!projects/aa_10yr_uncertainity/fire_trt_interaction/projects.shp')
+geom3 |> st_write('~/Dropbox/!!projects/aa_10yr_uncertainity/fire_trt_interaction/projects.shp')
 
 
 
@@ -161,27 +161,27 @@ plot(c(72, 35, 18, 11, 5) ~ c(22000, 10000, 5000, 2500, 1000), type='b',
 
 # save(tmp, file='misc/temp_results.Rdata')
 
-tmp %>% purrr::map_dfr(function(x){
-  data.frame(Objective = x[[1]]$Objective %>% sum())
+tmp |> purrr::map_dfr(function(x){
+  data.frame(Objective = x[[1]]$Objective |> sum())
 })
 
-tmp_out <- tmp %>% purrr::map_dfr(function(x){
+tmp_out <- tmp |> purrr::map_dfr(function(x){
   data.frame(Stand = x[[2]]$Stands)
-}) %>% dplyr::group_by(Stand) %>% summarize(n = n()) %>%
-  arrange(-n) %>% rename(cell_id = Stand)
+}) |> dplyr::group_by(Stand) |> summarize(n = n()) |>
+  arrange(-n) |> rename(cell_id = Stand)
 
-geom %>% left_join(tmp_out) %>%
+geom |> left_join(tmp_out) |>
   ggplot2::ggplot() +
   ggplot2::geom_sf(ggplot2::aes(fill = n), color=NA) +
   ggplot2::scale_fill_viridis_c() +
   cowplot::theme_cowplot()
 
-tmp_out <- tmp %>% purrr::map_dfr(function(x){
-  st <- x[[2]] %>% dplyr::select(cell_id = Stands, Project)
-  geom %>% inner_join(st) %>% group_by(Project) %>% summarize()
+tmp_out <- tmp |> purrr::map_dfr(function(x){
+  st <- x[[2]] |> dplyr::select(cell_id = Stands, Project)
+  geom |> inner_join(st) |> group_by(Project) |> summarize()
 })
 
-tmp_out %>% ggplot2::ggplot() +
+tmp_out |> ggplot2::ggplot() +
   ggplot2::geom_sf(ggplot2::aes(fill=Project), color=rgb(0,0,0,0.1), alpha=0.1)
 
 
@@ -189,8 +189,8 @@ tmp_out %>% ggplot2::ggplot() +
 
 
 par(mfrow=c(3,2))
-pout <- tmp %>% purrr::map(function(x){
-  geom2 <- geom %>% left_join(x[[2]] %>% dplyr::rename(cell_id = Stands))
+pout <- tmp |> purrr::map(function(x){
+  geom2 <- geom |> left_join(x[[2]] |> dplyr::rename(cell_id = Stands))
   ggplot2::ggplot(geom2) +
     ggplot2::geom_sf(ggplot2::aes(fill = Project), color=NA) +
     ggplot2::scale_fill_viridis_c(direction = -1) + 
@@ -204,9 +204,9 @@ gridExtra::grid.arrange(gList =- pout)
 
 generate_outputs[[1]] #project level outputs
 generate_outputs[[2]] #stand level outputs
-generate_outputs[[1]]$Objective %>% sum()
+generate_outputs[[1]]$Objective |> sum()
 
-geom2 <- geom %>% left_join(generate_outputs[[2]] %>% dplyr::rename(cell_id = Stands))
+geom2 <- geom |> left_join(generate_outputs[[2]] |> dplyr::rename(cell_id = Stands))
 col <- colorRampPalette(colors=rev(c('steelblue1','yellow','orange','red')))(10)
 plot(geom2[,'Project'], border=rgb(0,0,0,.1), pal = col)
 

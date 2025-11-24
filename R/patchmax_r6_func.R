@@ -5,6 +5,7 @@
 #' @param geom sf-type geometry with attributes 
 #' @param id_field vector of sf feature ideas (i.e., the stand id)
 #' @param method adjacency method to use: queen, rook, buffer
+#' @param adj_edgelist ???
 #' @importFrom proxy dist
 #' @importFrom igraph as_edgelist graph_from_data_frame
 #' @importFrom sf st_buffer st_overlaps st_centroid st_coordinates
@@ -24,17 +25,17 @@ create_adj_network <- function(
   
   if(is.null(adj_edgelist)){
     adj <- switch(method, 
-                  buffer = st_buffer(geom, dist = 1) %>% 
-                    sf::st_overlaps(sparse = TRUE) %>% 
+                  buffer = st_buffer(geom, dist = 1) |> 
+                    sf::st_overlaps(sparse = TRUE) |> 
                     data.frame(),
-                  rook = st_rook(geom) %>% 
+                  rook = st_rook(geom) |> 
                     data.frame(), 
-                  queen = st_queen(geom) %>% 
+                  queen = st_queen(geom) |> 
                     data.frame())
     
     # build adjacency network
-    vert <- geom %>% sf::st_drop_geometry() %>% select(id_field)
-    net <- data.frame(A = id[adj$row.id], B = id[adj$col.id]) %>%
+    vert <- geom |> sf::st_drop_geometry() |> select(id_field)
+    net <- data.frame(A = id[adj$row.id], B = id[adj$col.id]) |>
       graph_from_data_frame(
         directed = TRUE, 
         vertices = vert)
@@ -44,8 +45,8 @@ create_adj_network <- function(
     # build adjacency network from adjacency list
     if(ncol(adj_edgelist) != 2) stop('Adjacency edgelist must be table with two columns')
     
-    vert <- geom %>% sf::st_drop_geometry() %>% select(id_field)
-    net <- data.frame(A = adj_edgelist[,1], B = adj_edgelist[,2]) %>%
+    vert <- geom |> sf::st_drop_geometry() |> select(id_field)
+    net <- data.frame(A = adj_edgelist[,1], B = adj_edgelist[,2]) |>
       graph_from_data_frame(
         directed = TRUE, 
         vertices = vert)
@@ -54,9 +55,9 @@ create_adj_network <- function(
 
   # calculate centroid coordinates
   suppressWarnings({
-    xy <- geom %>% 
-      sf::st_centroid() %>% 
-      sf::st_coordinates() %>% 
+    xy <- geom |> 
+      sf::st_centroid() |> 
+      sf::st_coordinates() |> 
       as.data.frame()
     xy$name <- id
   })
@@ -66,9 +67,9 @@ create_adj_network <- function(
   V(net)$..sample = 1
   
   # extract edge list 
-  el <- as_edgelist(net, names=T) %>% 
-    as.data.frame() %>% 
-    setNames(c('from','to'))
+  el <- as_edgelist(net, names=T) |> 
+    as.data.frame() |> 
+    stats::setNames(c('from','to'))
   
   # calculate pairwise distances among dyads
   edge_attr(net) <- list(dist = proxy::dist(
@@ -86,7 +87,9 @@ create_adj_network <- function(
 #'
 #' @param geom sf. Stand geometry
 #' @param sample_frac numeric. Fraction of stands to evaluate
+#' @param id_field ???
 #' @param spatial_grid logical. Sample at regular spatial intervals?
+#' @param rng_seed ???
 #' 
 #' @importFrom sf st_sample st_join
 
@@ -107,9 +110,9 @@ sample_func <- function(
     if(spatial_grid){
       set.seed(rng_seed)
       pt_grd = sf::st_sample(geom, size = sample_n, type = 'regular')
-      nodes <- sf::st_join(sf::st_as_sf(pt_grd), geom) %>% pull(id_field)
+      nodes <- sf::st_join(sf::st_as_sf(pt_grd), geom) |> pull(id_field)
     } else {
-      nodes = geom[sort(sample(1:nrow(geom), sample_n)),] %>% pull(id_field)
+      nodes = geom[sort(sample(1:nrow(geom), sample_n)),] |> pull(id_field)
     }
   }
   return(nodes)
@@ -121,7 +124,7 @@ sample_func <- function(
 #'
 #' @param net igraph adjacency network
 #' @param include logical vector of same length as the count of network nodes
-#' @param area_fadjust value 0-1 represent area 'cost' of excluded stands
+#' @param area_adjust ???
 #' @param objective_adjust value 0-1, percent contribution of excluded stands
 #'   to patch score
 #' @details By default, excluded stands don't count towards the total project
@@ -173,15 +176,15 @@ distance_func <- function(
   }
   
   # extract adjacency network edge list
-  el <- as_edgelist(net, names=T) %>% 
-    as.data.frame() %>% 
-    setNames(c('from','to'))
+  el <- as_edgelist(net, names=T) |> 
+    as.data.frame() |> 
+    stats::setNames(c('from','to'))
   
   el$dist <- E(net)$dist
   
   # pull objective score of tie alter standardize range from 0 to 1
-  el$objective <- igraph::vertex_attr(net, '..objective', match(el$to, V(net)$name))
-  el$objective <- el$objective %>% range01()
+  el$objective <- igraph::vertex_attr(graph = net, name = '..objective', index = match(el$to, V(net)$name))
+  el$objective <- el$objective |> range01()
   
   # modify distance based on alter objective score
   # OLD: el$dist_adj <- el$dist * (1+(1-el$objective)*(base_fact^sdw))
@@ -189,7 +192,7 @@ distance_func <- function(
   el$dist_adj <- el$dist ^ objective_mod
   
   # pull exclude score from tie alter
-  el$exclude <- igraph::vertex_attr(net, '..include', match(el$to, V(net)$name))
+  el$exclude <- igraph::vertex_attr(graph = net, name = '..include', index = match(el$to, V(net)$name))
 
   # modify distance based on exclusion status
   # OLD: el$dist_adj <- el$dist_adj * ifelse(el$exclude, base_fact^epw, 1)
@@ -207,13 +210,12 @@ distance_func <- function(
 #' Build patch of specified size while minimizing modified distance costs
 #'
 #' @param seed character. Node id to start building patch
-#' @param cpp_graph graph object built with cppRouting
-#' @param net igraph Adjacency network with stand attributes
+#' @param edge_dat ???
+#' @param node_dat ???
 #' @param a_max numeric. Maximum size of patch
 #' @param a_min numeric. Minimum size of patch
 #' @param c_max numeric. Maximum secondary constraint of patch
 #' @param c_min numeric. Minimum secondary constraint of patch
-#' @param c_enforce logical. Should patches outside of constraint be excluded?
 #' @importFrom cppRouting get_distance_matrix
 #' @return data frame of nearest nodes arranged by distance
 
@@ -258,7 +260,8 @@ build_func <- function(
 #' Evaluate objective score for all or fraction of patch stand seeds
 #'
 #' @param net igraph graph object
-#' @param cpp_graph cpp graph object
+#' @param edge_dat ???
+#' @param node_dat ???
 #' @param nodes which nodes to evaluate as potential patches
 #' @param objective_field name of field containing objective values
 #' @param a_max maxmimum patch size
@@ -266,9 +269,8 @@ build_func <- function(
 #' @param c_max maximum constraint value
 #' @param c_min minimum constraint value
 #' @param t_limit maximum allowable portion (0-1) of patch area excluded by threshold
-#' @param return_all logical Return search values for all nodes evaluated
+#' @param verbose ???
 #' @param show_progress logical Show progress bar 
-#' @param print_errors logical Print reason for invalid search (for debugging)
 #'
 #' @details Calculates potential patches for all or fraction of landscape stands in order to identify the initial seed that leads to the highest total objective score.
 #' 
@@ -295,7 +297,7 @@ build_func <- function(
     }
     
     # calculate objective score for all potential patches
-    search_out <- nodes %>% future_map(function(i) {
+    search_out <- nodes |> future_map(function(i) {
       
       proj_obj <- NA
       

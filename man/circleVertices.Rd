@@ -9,11 +9,11 @@ circleVertices(xc, yc, radius, npoints = 25)
 \arguments{
 \item{xc}{x center}
 
+\item{yc}{y center}
+
 \item{radius}{radius of circle}
 
 \item{npoints}{number of points}
-
-\item{xy}{y center}
 }
 \description{
 Generate vertex coordinates for a circle

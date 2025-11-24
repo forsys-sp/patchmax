@@ -22,6 +22,10 @@ search_func(
 \arguments{
 \item{net}{igraph graph object}
 
+\item{edge_dat}{???}
+
+\item{node_dat}{???}
+
 \item{nodes}{which nodes to evaluate as potential patches}
 
 \item{objective_field}{name of field containing objective values}
@@ -38,11 +42,7 @@ search_func(
 
 \item{show_progress}{logical Show progress bar}
 
-\item{cpp_graph}{cpp graph object}
-
-\item{return_all}{logical Return search values for all nodes evaluated}
-
-\item{print_errors}{logical Print reason for invalid search (for debugging)}
+\item{verbose}{???}
 }
 \description{
 Evaluate objective score for all or fraction of patch stand seeds

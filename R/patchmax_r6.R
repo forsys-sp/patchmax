@@ -7,6 +7,7 @@
 #' geom <- patchmax::test_forest
 #' pm <- patchmax$new(geom, 'id', 'p1', 'ha', 20000)
 #' pm$params = list(constraint_field = 'p4', constraint_max = 50, area_min=10000)
+#' pm$random_sample(0.1)
 #' pm$search()
 #' pm$build()$record()
 #' pm$plot()
@@ -84,8 +85,8 @@ patchmax <- R6::R6Class(
       }
       
       # add fields to adjacency network
-      a <- igraph::vertex_attr(private$..net) %>% data.frame()
-      b <- sf::st_drop_geometry(private$..geom) %>% rename(name = private$..param_id_field)
+      a <- igraph::vertex_attr(private$..net) |> data.frame()
+      b <- sf::st_drop_geometry(private$..geom) |> rename(name = private$..param_id_field)
       igraph::vertex_attr(private$..net) <- inner_join(a, b, by='name')
       
       # save optional parameters
@@ -124,7 +125,7 @@ patchmax <- R6::R6Class(
         c_min = private$..param_constraint_min)
       
       # append  stand data
-      aux_data <- igraph::vertex_attr(private$..net) %>% data.frame() %>%
+      aux_data <- igraph::vertex_attr(private$..net) |> data.frame() |>
         dplyr::select(node = name, 
                private$..param_objective_field, 
                original_area = ..area)
@@ -245,17 +246,18 @@ patchmax <- R6::R6Class(
       net <- private$..net
       
       if(apply_threshold){
-        patches = geom %>% dplyr::filter(..include == 1, ..patch_id != 0) 
+        patches = geom |> dplyr::filter(..include == 1, ..patch_id != 0) 
       } else {
-        patches = geom %>% dplyr::filter(..patch_id != 0)
+        patches = geom |> dplyr::filter(..patch_id != 0)
       }
       
-      patches <- patches %>% group_by(..patch_id) %>% summarize()
+      patches <- patches |> group_by(..patch_id) |> summarize()
       
       # add include field for plotting
-      geom$..include = igraph::vertex_attr(
-        net, '..include', 
-        match(dplyr::pull(geom, private$..param_id_field), V(net)$name))
+      geom$..include <- igraph::vertex_attr(
+        graph = net, 
+        name = '..include', 
+        index = match(dplyr::pull(geom, private$..param_id_field), V(net)$name))
       geom$..include = factor(geom$..include, c(0,1))
       
       plot = ggplot() + 
@@ -267,15 +269,15 @@ patchmax <- R6::R6Class(
         theme(legend.position = 'bottom') +
         theme_void() 
       
-      if(!class(geom %>% dplyr::pull(get(plot_field))) %in% c('character','logical','factor')){
+      if(!class(geom |> dplyr::pull(get(plot_field))) %in% c('character','logical','factor')){
         plot = plot + scale_fill_gradientn(colors = sf.colors(10))
       }
       
       if(nrow(patches) > 0){
         
         x <- private$..record_patch_stats$seed
-        seeds = geom %>% dplyr::filter(dplyr::pull(geom, private$..param_id_field) %in% x) %>% dplyr::select(..patch_id)
-        excluded <- geom %>% dplyr::filter(..patch_id != 0, ..include == 0)
+        seeds = geom |> dplyr::filter(dplyr::pull(geom, private$..param_id_field) %in% x) |> dplyr::select(..patch_id)
+        excluded <- geom |> dplyr::filter(..patch_id != 0, ..include == 0)
         
         plot <- plot +
           geom_sf(data=patches, fill=rgb(0,0,0,.2), linewidth=1, color='black') +
@@ -311,7 +313,7 @@ patchmax <- R6::R6Class(
       
       # pull pending patch and stand data
       patches <- private$..pending_patch_stats
-      stands <- private$..pending_patch_stands %>%
+      stands <- private$..pending_patch_stands |>
         dplyr::select(!!private$..param_id_field := node, include, objective, area, constraint)
       
       # record data
@@ -356,10 +358,10 @@ patchmax <- R6::R6Class(
     #'
     summarize = function(group_vars = NULL, sum_vars = NULL){
       
-      stands <- private$..geom %>% 
-        sf::st_drop_geometry() %>% 
-        dplyr::select(-..include) %>%
-        inner_join(self$patch_stands) %>%
+      stands <- private$..geom |> 
+        sf::st_drop_geometry() |> 
+        dplyr::select(-..include) |>
+        inner_join(self$patch_stands) |>
         rename(DoTreat = include)
       
       sum_vars <- c(private$..param_objective_field,
@@ -373,8 +375,8 @@ patchmax <- R6::R6Class(
         group_vars <- c('patch_id', group_vars)
       }
       
-      sum_out <- stands %>% 
-        group_by_at(vars(group_vars)) %>%
+      sum_out <- stands |> 
+        group_by_at(vars(group_vars)) |>
         summarize_at(vars(sum_vars), sum)
       
       return(sum_out)
@@ -555,13 +557,13 @@ patchmax <- R6::R6Class(
       # set area values
       if(!is.null(private$..param_area_field)){
         igraph::vertex_attr(private$..net, name = '..area') <- 
-          igraph::vertex_attr(private$..net, private$..param_area_field)
+          igraph::vertex_attr(private$..net, name = private$..param_area_field)
       }
       
       # set constraint values
       if(!is.null(private$..param_constraint_field)){
         igraph::vertex_attr(private$..net, name = '..constraint') <- 
-          igraph::vertex_attr(private$..net, private$..param_constraint_field)
+          igraph::vertex_attr(private$..net, name = private$..param_constraint_field)
       }
       
       # set threshold values
@@ -569,8 +571,8 @@ patchmax <- R6::R6Class(
         net <- private$..net
         s_txt = private$..param_threshold
         id = private$..param_id_field
-        all_ids = dplyr::pull(igraph::vertex_attr(net), 'name')   
-        include_ids = subset(igraph::vertex_attr(net), eval(parse(text = s_txt))) %>% dplyr::pull(name)
+        all_ids = igraph::vertex_attr(net) |> data.frame() |> dplyr::pull('name')   
+        include_ids = subset(igraph::vertex_attr(net), eval(parse(text = s_txt))) |> dplyr::pull(name)
         V(private$..net)$..include = ifelse(all_ids %in% include_ids, 1, 0)
       } else
         V(private$..net)$..include = 1
@@ -585,7 +587,7 @@ patchmax <- R6::R6Class(
         names(search_values), 
         search = as.numeric(search_values),
         error = search_out$errors
-      ) %>% rename(!!private$..param_id_field := 1)
+      ) |> rename(!!private$..param_id_field := 1)
       
       pdat <- dplyr::inner_join(
         x = private$..geom, 
@@ -612,8 +614,8 @@ patchmax <- R6::R6Class(
         seed <- pdat[pdat$search == max(pdat$search, na.rm=TRUE),]
         best_out = names(search_values)[which.max(search_values)]
         self$build(best_out)
-        patch_geom <- self$geom %>% 
-          dplyr::filter(get(private$..param_id_field) %in% self$pending_stands$node) %>%
+        patch_geom <- self$geom |> 
+          dplyr::filter(get(private$..param_id_field) %in% self$pending_stands$node) |>
           summarize()
         
         p1 <- p1 +  
@@ -648,15 +650,16 @@ patchmax <- R6::R6Class(
         }
         
         # set key fields in geometry object
-        value <- value %>% 
-          mutate(!!private$..param_id_field := as.character(get(private$..param_id_field))) %>%
-          mutate(..patch_id = 0) %>%
-          mutate(..include = 1) %>%
-          mutate(..objective = 0) %>%
-          mutate(..area = 0) %>%
+        value <- value |> 
+          mutate(!!private$..param_id_field := as.character(get(private$..param_id_field))) |>
+          mutate(..patch_id = 0) |>
+          mutate(..include = 1) |>
+          mutate(..objective = 0) |>
+          mutate(..area = 0) |>
           mutate(..constraint = 0)
         
-        if(dplyr::pull(value, private$..param_id_field) %>% n_distinct() < nrow(value)){
+        if(
+          value |> dplyr::pull(private$..param_id_field) |> n_distinct() < nrow(value)){
           stop('Stand IDs must be unique')
         }
         
@@ -887,7 +890,7 @@ patchmax <- R6::R6Class(
       if(missing(value)){
         nm <- names(private)
         nm_p <- nm[grepl('..param', nm)]
-        params <- nm_p %>% lapply(function(x) get(x, envir = private))
+        params <- nm_p |> lapply(function(x) get(x, envir = private))
         names(params) <- gsub('..param_','', nm_p)
         str(params)
       } else {

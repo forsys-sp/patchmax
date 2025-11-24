@@ -14,11 +14,11 @@ arc_ident <- function(layer_a, layer_b){
 }
 
 # load stand geometry
-shp <- patchmax::test_forest %>% 
+shp <- patchmax::test_forest |> 
   # filter(m1 == 3, t2 == 1) |>
-  filter(row > 35, row <= 45, col > 25, col <= 45) %>%
-  mutate(cost = ((p2 + p4 - c1) * 1000) + 3000) %>%
-  mutate(p5 = p4 * (1 - p3)) %>%
+  filter(row > 35, row <= 45, col > 25, col <= 45) |>
+  mutate(cost = ((p2 + p4 - c1) * 1000) + 3000) |>
+  mutate(p5 = p4 * (1 - p3)) |>
   mutate(p5 = p5 * p5)
 
 plot(shp[,'p4'])

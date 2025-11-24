@@ -40,16 +40,16 @@ calculate_adj_func <- function(
   ) {
   
   # buffer approach
-  shapefile2 <- Shapefile %>% sf::st_buffer(dist = Adjdist)
-  adj <- sf::st_overlaps(shapefile2, sparse = TRUE) %>% data.frame()
+  shapefile2 <- Shapefile |> sf::st_buffer(dist = Adjdist)
+  adj <- sf::st_overlaps(shapefile2, sparse = TRUE) |> data.frame()
   adj2 <- data.frame(A = St_id[adj$row.id], B = St_id[adj$col.id])
   g <- igraph::graph_from_data_frame(adj2, directed = TRUE)
   
   if(calc_dist){
-    xy <- st_centroid(Shapefile) %>% st_coordinates() %>% as.data.frame()
+    xy <- st_centroid(Shapefile) |> st_coordinates() |> as.data.frame()
     V(g)$X <- xy$X
     V(g)$Y <- xy$Y
-    el <- igraph::as_edgelist(g, names=T) %>% as.data.frame() %>% setNames(c('from','to'))
+    el <- igraph::as_edgelist(g, names=T) |> as.data.frame() |> stats::setNames(c('from','to'))
     edge_attr(g) <- list(dist = proxy::dist(xy[el$from,], xy[el$to,], pairwise = T))
   }
   

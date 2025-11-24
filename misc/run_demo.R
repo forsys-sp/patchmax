@@ -7,17 +7,17 @@ library(sf)
 # library(data.table)
 
 # load stand geometry
-shp <- patchmax::test_forest %>% 
-  # filter(row > 23, row <= 42, col > 25, col <= 42) %>%
-  # filter(row > 10, row <= 20, col > 10, col <= 20) %>%
+shp <- patchmax::test_forest |> 
+  # filter(row > 23, row <= 42, col > 25, col <= 42) |>
+  # filter(row > 10, row <= 20, col > 10, col <= 20) |>
   filter(m1 == 3) |>
-  mutate(cost = ((p2 + p4 - c1) * 1000) + 3000) %>%
-  mutate(p5 = p4 * (1 - p3)) %>%
+  mutate(cost = ((p2 + p4 - c1) * 1000) + 3000) |>
+  mutate(p5 = p4 * (1 - p3)) |>
   mutate(p5 = p5 * p5)
 
 # display stand attributes
-shp %>%
-  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]|cost')) %>%
+shp |>
+  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]|cost')) |>
   plot(max.plot = 20, border=NA)
 
 bw.colors <- function(n){
@@ -163,7 +163,7 @@ pm_c$reset()$simulate(10)
 pdat <- data.frame(rank = 1:10,
            a = pm_a$patch_stats$objective,
            b = pm_b$patch_stats$objective,
-           c = pm_c$patch_stats$objective) %>%
+           c = pm_c$patch_stats$objective) |>
   pivot_longer(-rank) 
 
-pdat %>% ggplot(aes(x = rank, y = value, color = name)) + geom_line()
+pdat |> ggplot(aes(x = rank, y = value, color = name)) + geom_line()

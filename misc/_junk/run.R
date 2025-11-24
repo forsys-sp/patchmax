@@ -12,7 +12,7 @@ source('misc/patchmax_r6_data.R')
 # set number of session to run in parallel
 plan(multisession, workers = 8)
 
-# geom <- geom %>% filter(boundary3 != 0)
+# geom <- geom |> filter(boundary3 != 0)
 
 # DONE !! Prohibit patches failing area & secondary constraints, results in NA in search map
 # DONE !! Fix issue with threshold leading to later patches having higher objectives
@@ -57,7 +57,7 @@ p$build(823)$plot('threshold2')
 
 p$plot('cluster2')
 
-plot(geom %>% mutate(revenue = ((priority2 + priority4 - cluster1) * 1000)) %>% select(revenue), border=NA)
+plot(geom |> mutate(revenue = ((priority2 + priority4 - cluster1) * 1000)) |> select(revenue), border=NA)
 
 p$geom$patch_id
 
@@ -142,15 +142,15 @@ p$describe()
 p$plot()
 
 # plot patch project values across all priorities
-pdat <- p$describe() %>% 
-  dplyr::select(matches('patch_id|priority')) %>% 
-  tidyr::pivot_longer(-1) %>%
-  filter(patch_id != 0) %>%
-  arrange(name) %>%
-  group_by(name) %>%
+pdat <- p$describe() |> 
+  dplyr::select(matches('patch_id|priority')) |> 
+  tidyr::pivot_longer(-1) |>
+  filter(patch_id != 0) |>
+  arrange(name) |>
+  group_by(name) |>
   mutate(cs = cumsum(value))
 
-pdat %>%
+pdat |>
   ggplot(aes(x=patch_id, y=value, color=name)) + 
   geom_point(size=0.5) + 
   # geom_line(linetype=1, alpha=0.5) +
@@ -180,27 +180,27 @@ func <- function(x, s=3) 0.5+log10(x/(1-x))/s
 sq2 = range01(func(seq(0.05,.95,.1)))
 
 q = 0.5
-p_out <- c(sq2,rev(sq2)) %>% purrr::map(function(q){
+p_out <- c(sq2,rev(sq2)) |> purrr::map(function(q){
   print(q)
   geom$priority_12 = geom$priority1 * q + geom$priority2 * (1 - q)
   patchmax <- patchmax_generator$new(geom, 'stand_id', 'priority_12', 'area_ha', 20000)
   p$simulate(n_projects = 20)
   patch_out <- p$describe()
-  stand_out <- p$geom %>% 
-    dplyr::select(stand_id, priority_12, patch_id) %>%
+  stand_out <- p$geom |> 
+    dplyr::select(stand_id, priority_12, patch_id) |>
     filter(patch_id != 0)
   return(list(patch_out, stand_out))
 })
 
 # save(p_out, file = 'multi_run_tradeoff_v2.Rdata')
 
-stand_dat <- p_out %>% purrr::map(2)
+stand_dat <- p_out |> purrr::map(2)
 
 saveVideo({
   for(i in 1:20){
     ani.options(interval = 1)
-    patch_pdat <- stand_dat[[i]] %>% 
-      group_by(patch_id) %>% 
+    patch_pdat <- stand_dat[[i]] |> 
+      group_by(patch_id) |> 
       summarize() 
     
     plot_out <- ggplot(data = patch_pdat) + geom_sf(aes(fill = patch_id)) + 
@@ -222,11 +222,11 @@ saveVideo({
 }, ani.width = 960, ani.height = 960, ani.res = 200)
 
 
-patch_data <- p_out %>% purrr::map(1)
+patch_data <- p_out |> purrr::map(1)
 
-curve_data <- 1:20 %>% purrr::map_dfr(function(x){
-  out <- patch_data[[x]] %>% 
-    filter(patch_id != 0) %>%
+curve_data <- 1:20 |> purrr::map_dfr(function(x){
+  out <- patch_data[[x]] |> 
+    filter(patch_id != 0) |>
     select(patch_id, priority1, priority2)
   out$x = x
   return(out)
@@ -241,8 +241,8 @@ saveVideo({
       geom_point(alpha=0.5) +
       scale_color_gradientn(colors = rev(sf.colors(10))) +
       geom_point(size=3, alpha=0.5) +
-      geom_point(data=curve_data %>% filter(x == i), color = 'black', size=3) +
-      geom_text(data=curve_data %>% filter(x == i), aes(label=patch_id), size=2, color='white') +
+      geom_point(data=curve_data |> filter(x == i), color = 'black', size=3) +
+      geom_text(data=curve_data |> filter(x == i), aes(label=patch_id), size=2, color='white') +
       cowplot::theme_cowplot() +
       theme(legend.position = 'none', 
             axis.line = element_blank(), 
@@ -250,8 +250,8 @@ saveVideo({
             axis.text = element_blank()) +
       labs(x = 'P1', y = 'P2')
     
-    patch_pdat <- stand_dat[[i]] %>% 
-      group_by(patch_id) %>% 
+    patch_pdat <- stand_dat[[i]] |> 
+      group_by(patch_id) |> 
       summarize() 
     
     patch_out <- ggplot(data = patch_pdat) + geom_sf(aes(fill = patch_id)) + 

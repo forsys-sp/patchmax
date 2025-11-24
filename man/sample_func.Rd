@@ -11,7 +11,11 @@ sample_func(geom, sample_frac, id_field, spatial_grid = TRUE, rng_seed = NULL)
 
 \item{sample_frac}{numeric. Fraction of stands to evaluate}
 
+\item{id_field}{???}
+
 \item{spatial_grid}{logical. Sample at regular spatial intervals?}
+
+\item{rng_seed}{???}
 }
 \description{
 Samples stands on regular spatial grid

@@ -2,13 +2,13 @@
 pacman::p_load(dplyr, sf, future, ggplot2, tidyr, patchmax, animation, glue)
 
 # load stand geometry
-shp <- patchmax::test_forest %>% 
-  filter(row > 30, row <= 70, col > 30, col <= 70) %>%
+shp <- patchmax::test_forest |> 
+  filter(row > 30, row <= 70, col > 30, col <= 70) |>
   mutate(cost = ((p2 + p4 - c1) * 1000) + 3000)
 
 # display stand attributes
-shp %>%
-  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]|cost')) %>%
+shp |>
+  select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]|cost')) |>
   plot(max.plot = 20, border=NA)
 
 # create new patchmax object

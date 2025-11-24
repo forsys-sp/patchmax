@@ -24,15 +24,15 @@ patchmax$describe()
 patchmax$plot()
 patchmax$build(1010)$plot()
 
-pdat <- patchmax$describe() %>% 
-  dplyr::select(matches('patch_id|priority')) %>% 
-  tidyr::pivot_longer(-1) %>%
-  filter(patch_id != 0) %>%
-  arrange(name) %>%
-  group_by(name) %>%
+pdat <- patchmax$describe() |> 
+  dplyr::select(matches('patch_id|priority')) |> 
+  tidyr::pivot_longer(-1) |>
+  filter(patch_id != 0) |>
+  arrange(name) |>
+  group_by(name) |>
   mutate(cs = cumsum(value))
 
-pdat %>%
+pdat |>
   ggplot(aes(x=patch_id, y=value, color=name)) + 
   geom_line(linetype=2) +
   geom_smooth(se = FALSE) +
@@ -97,7 +97,7 @@ animation::saveVideo({
       patchmax$search(sample_frac = 1)$build()$record()
     }
     
-    patch_geom <- patchmax$geom %>% filter(patch_id != 0) %>% group_by(patch_id) %>% summarize()
+    patch_geom <- patchmax$geom |> filter(patch_id != 0) |> group_by(patch_id) |> summarize()
     p_out <- ggplot() + 
       geom_sf(data=patchmax$geom, linewidth=0, aes(fill=priority_12)) +
       # geom_sf(data=patchmax$geom, aes(fill=search_score)) + 
@@ -149,7 +149,7 @@ patchmax$plot()
   i = i + 1
 # }
 
-patches <- patchmax$geom %>% group_by(patch_id) %>% summarize() %>% filter(patch_id != 0)
+patches <- patchmax$geom |> group_by(patch_id) |> summarize() |> filter(patch_id != 0)
 plot(patches)
 
 patchmax$sdw = 1

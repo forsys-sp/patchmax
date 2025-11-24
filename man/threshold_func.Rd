@@ -11,10 +11,10 @@ threshold_func(net, include, area_adjust = 0, objective_adjust = 0)
 
 \item{include}{logical vector of same length as the count of network nodes}
 
+\item{area_adjust}{???}
+
 \item{objective_adjust}{value 0-1, percent contribution of excluded stands
 to patch score}
-
-\item{area_fadjust}{value 0-1 represent area 'cost' of excluded stands}
 }
 \value{
 igraph adjacency network

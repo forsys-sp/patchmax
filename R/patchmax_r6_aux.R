@@ -2,7 +2,7 @@
 #' Generate vertex coordinates for a circle
 #' 
 #' @param xc x center
-#' @param xy y center
+#' @param yc y center
 #' @param radius radius of circle
 #' @param npoints number of points
 #' 

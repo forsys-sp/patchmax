@@ -5,12 +5,12 @@ source('misc/rppRouting_func.R')
 
 # load data and identify adjacency
 test_forest <- forsys::test_forest
-# test_forest <- test_forest %>% filter(!stand_id %in% c(4050:4070))
-data <- test_forest %>% st_drop_geometry() %>% as.data.frame()
+# test_forest <- test_forest |> filter(!stand_id %in% c(4050:4070))
+data <- test_forest |> st_drop_geometry() |> as.data.frame()
 adj <- Patchmax::calculate_adj(test_forest, St_id = test_forest$stand_id, calc_dst = TRUE)
-igraph::vertex_attr(adj) <- data %>% dplyr::select(matches('priority'))
-xy <- sf::st_centroid(test_forest) %>% sf::st_coordinates() %>% as.data.frame()
-nodes <- V(adj) %>% as_ids() %>% as.numeric()
+igraph::vertex_attr(adj) <- data |> dplyr::select(matches('priority'))
+xy <- sf::st_centroid(test_forest) |> sf::st_coordinates() |> as.data.frame()
+nodes <- V(adj) |> as_ids() |> as.numeric()
 
 # define key parameters
 r = 3060
@@ -19,17 +19,17 @@ area_field = 'area_ha'
 max_area = 100000
 sdw = 10
 
-out <- 1:10 %>% purrr::map(function(x){
+out <- 1:10 |> purrr::map(function(x){
   print(x)
   sdw = x
   # calculate distance cost edge list (0.08 sec)
   rpp_edgelist <- calc_cost_edgelist(net = adj, xy = xy, objective_field = field, sdw = sdw)
   # convert to rpp graph object (0.07 sec)
-  rpp_graph <- rpp_edgelist %>% select(from, to, dist_adj) %>% makegraph()
+  rpp_graph <- rpp_edgelist |> select(from, to, dist_adj) |> makegraph()
   # calculate distance matrix (0.01 sec)
-  rpp_dmat <- rpp_graph %>% get_distance_matrix(from=r, to=nodes, allcores=TRUE) 
+  rpp_dmat <- rpp_graph |> get_distance_matrix(from=r, to=nodes, allcores=TRUE) 
   # convert into nearest node list (<0.01 sec)
-  rpp_nn <- rpp_dmat %>% calc_nearest_nodes(area_field = 'area_ha', proj_area = max_area)
+  rpp_nn <- rpp_dmat |> calc_nearest_nodes(area_field = 'area_ha', proj_area = max_area)
   # add objective to nearest node list (<0.01 sec)
   rpp_nn$objective <- data[match(rpp_nn$node, data$stand_id),field]
   return(rpp_nn)
@@ -54,17 +54,17 @@ saveVideo({
     # sdw = i
 
     rpp_edgelist <- calc_cost_edgelist(net = adj, xy = xy, objective = data$priority4, sdw = sdw)
-    rpp_graph <- rpp_edgelist %>% select(from, to, dist_adj) %>% makegraph()
-    rpp_dmat <- rpp_graph %>% get_distance_matrix(from=r, to=nodes, allcores=TRUE)
-    rpp_nn <- rpp_dmat %>% calc_nearest_nodes(area_field = 'area_ha', proj_area = max_area)
+    rpp_graph <- rpp_edgelist |> select(from, to, dist_adj) |> makegraph()
+    rpp_dmat <- rpp_graph |> get_distance_matrix(from=r, to=nodes, allcores=TRUE)
+    rpp_nn <- rpp_dmat |> calc_nearest_nodes(area_field = 'area_ha', proj_area = max_area)
     rpp_nn$objective <- data[match(rpp_nn$node, data$stand_id),field]
-    plot_project(test_forest %>% mutate(objective = get(field)), adj, rpp_nn, buffer = 50000)
+    plot_project(test_forest |> mutate(objective = get(field)), adj, rpp_nn, buffer = 50000)
   }
 }, other.opts = '-pix_fmt yuyv422', ani.width = 1000, ani.height = 1000, ani.res = 150, interval = 0.01)
 
 
 
-plot_project(test_forest %>% mutate(objective = get(field)), adj, rpp_nn, buffer = 1000000)
+plot_project(test_forest |> mutate(objective = get(field)), adj, rpp_nn, buffer = 1000000)
 
 
 
@@ -85,16 +85,16 @@ saveGIF({
     
     sdw = v[i]
     E(adj)$dist_mod <- E(adj)$dist * E(adj)$priority^sdw
-    edges <- igraph::as_edgelist(adj, names=F) %>% cbind(1)
+    edges <- igraph::as_edgelist(adj, names=F) |> cbind(1)
     edges[,3] <- E(adj)$dist_mod
     nodes <- 1:10000
     grph <- makegraph(edges)
     dist <- get_distance_matrix(Graph=grph, from=nodes[r], to=nodes, allcores=TRUE)
-    nearest_nodes <- dist[1,] %>% sort() %>% head(area_crit)
+    nearest_nodes <- dist[1,] |> sort() |> head(area_crit)
     nearest_nodes_df <- data.frame(node = names(nearest_nodes), dist = nearest_nodes)
     sg <- igraph::subgraph(adj, vids = nearest_nodes_df$node)
     V(sg)$color <- leaflet::colorNumeric("Blues", domain = NULL)(V(sg)$objective)
-    xy_s <- xy[match(nearest_nodes_df$node, V(adj)$name),] %>% as.matrix()
+    xy_s <- xy[match(nearest_nodes_df$node, V(adj)$name),] |> as.matrix()
     objective_sum <- sum(V(sg)$objective)
     
     # network graph 
@@ -102,12 +102,12 @@ saveGIF({
     #      edge.arrow.size = 0, vertex.shape = "square")
     # s_ids <- V(sg)$name
     
-    bbox <- data %>% filter(stand_id == r) %>% st_buffer(20000) %>% st_bbox() %>% st_as_sfc()
-    data2 <- data %>% st_crop(bbox)
+    bbox <- data |> filter(stand_id == r) |> st_buffer(20000) |> st_bbox() |> st_as_sfc()
+    data2 <- data |> st_crop(bbox)
     p <- ggplot(data2, aes(fill = priority4)) + 
       geom_sf(alpha=0.4, color='white') +
-      geom_sf(data = data %>% filter(stand_id %in% V(sg)$name)) +
-      geom_sf(data = data %>% filter(stand_id == r), fill='yellow') +
+      geom_sf(data = data |> filter(stand_id %in% V(sg)$name)) +
+      geom_sf(data = data |> filter(stand_id == r), fill='yellow') +
       scale_fill_viridis_c(direction = -1) + 
       cowplot::theme_map() + 
       guides(fill = 'none') +
@@ -123,25 +123,25 @@ saveGIF({
 
 
 E(adj)$dist_mod <- E(adj)$dist * E(adj)$priority^sdw
-edges <- igraph::as_edgelist(adj, names=F) %>% cbind(1)
+edges <- igraph::as_edgelist(adj, names=F) |> cbind(1)
 edges[,3] <- E(adj)$dist_mod
 nodes <- 1:10000
 grph <- makegraph(edges)
 dist <- get_distance_matrix(Graph=grph, from=nodes[r], to=nodes, allcores=TRUE)
-nearest_nodes <- dist[1,] %>% sort() %>% head(100)
+nearest_nodes <- dist[1,] |> sort() |> head(100)
 nearest_nodes_df <- data.frame(node = names(nearest_nodes), dist = nearest_nodes)
 sg <- igraph::subgraph(adj, vids = nearest_nodes_df$node)
 V(sg)$color <- leaflet::colorNumeric("Blues", domain = NULL)(V(sg)$objective)
-xy_s <- xy[match(nearest_nodes_df$node, V(adj)$name),] %>% as.matrix()
+xy_s <- xy[match(nearest_nodes_df$node, V(adj)$name),] |> as.matrix()
 # plot(sg, layout = xy_s, vertex.size = 10, vertex.label = NA, edge.color = NA,
 #      edge.arrow.size = 0, vertex.shape = "square")
 # s_ids <- V(sg)$name
 
-bbox <- data %>% filter(stand_id == r) %>% st_buffer(15000) %>% st_bbox() %>% st_as_sfc()
-data2 <- data %>% st_crop(bbox)
+bbox <- data |> filter(stand_id == r) |> st_buffer(15000) |> st_bbox() |> st_as_sfc()
+data2 <- data |> st_crop(bbox)
 ggplot(data2, aes(fill = priority4)) + 
   geom_sf(fill='grey', color='white') +
-  geom_sf(data = data %>% filter(stand_id %in% V(sg)$name)) +
+  geom_sf(data = data |> filter(stand_id %in% V(sg)$name)) +
   scale_fill_viridis_c() + 
   cowplot::theme_map()
 

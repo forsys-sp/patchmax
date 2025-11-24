@@ -12,6 +12,8 @@ create_adj_network(geom, id_field, method = "queen", adj_edgelist = NULL)
 \item{id_field}{vector of sf feature ideas (i.e., the stand id)}
 
 \item{method}{adjacency method to use: queen, rook, buffer}
+
+\item{adj_edgelist}{???}
 }
 \value{
 adjacency network saved as an igraph network object
