@@ -568,11 +568,13 @@ patchmax <- R6::R6Class(
       
       # set threshold values
       if(!is.null(private$..param_threshold)){
-        net <- private$..net
-        s_txt = private$..param_threshold
-        id = private$..param_id_field
-        all_ids = igraph::vertex_attr(net) |> data.frame() |> dplyr::pull('name')   
-        include_ids = subset(igraph::vertex_attr(net), eval(parse(text = s_txt))) |> dplyr::pull(name)
+        all_ids = igraph::vertex_attr(private$..net) |> 
+          data.frame() |> 
+          dplyr::pull('name')   
+        include_ids = igraph::vertex_attr(private$..net) |> 
+          data.frame() |> 
+          subset(eval(parse(text = private$..param_threshold))) |> 
+          dplyr::pull('name')
         V(private$..net)$..include = ifelse(all_ids %in% include_ids, 1, 0)
       } else
         V(private$..net)$..include = 1

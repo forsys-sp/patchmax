@@ -1,10 +1,6 @@
 library(patchmax)
 library(dplyr)
 library(sf)
-# library(future)
-# library(ggplot2)
-# library(tidyr)
-# library(data.table)
 
 # load stand geometry
 shp <- patchmax::test_forest |> 
@@ -20,19 +16,11 @@ shp |>
   select(matches('p[0-9]|t[0-9]|b[0-9]|m[0-9]|c[0-9]|cost')) |>
   plot(max.plot = 20, border=NA)
 
-bw.colors <- function(n){
-  grey.colors(n, start = 0, end = 1, rev = T)
-}
+bw.colors <- function(n) grey.colors(n, start = 0, end = 1, rev = T)
 plot(shp[,'p5'], nbreaks = 10, pal = bw.colors)
 
-plot(shp$geometry)
-
-net <- create_adj_network(shp, 'id')
-plot(net, vertex.label = NA, vertex.size = 1, edge.arrow.size = 0)
-
-el <- net |> igraph::as_edgelist()
-net <- create_adj_network(shp, 'id', adj_edgelist = el)
-plot(net, vertex.label = NA, vertex.size = 1, edge.arrow.size = 0)
+# net <- create_adj_network(shp, 'id')
+# plot(net, vertex.label = NA, vertex.size = 1, edge.arrow.size = 0)
 
 # create new patchmax object
 pm <- patchmax$new(
@@ -44,29 +32,8 @@ pm <- patchmax$new(
   area_min = 200,
   area_max = 10000)
 
-# create new patchmax object w pre-generated network
-pm <- patchmax$new(
-  geom = shp,
-  id_field = 'id', 
-  objective_field = 'p5', 
-  area_field = 'ha', 
-  threshold = 'c3 == 1',
-  area_min = 200,
-  area_max = 10000, 
-  adj_method = 'buffer')
-
-# create new patchmax object w pre-generated network
-pm <- patchmax$new(
-  geom = shp,
-  id_field = 'id', 
-  objective_field = 'p5', 
-  area_field = 'ha', 
-  threshold = 'c3 == 1',
-  area_min = 200,
-  area_max = 10000, 
-  adj_network = net)
-
 pm$reset()$plot()
+pm$random_sample(0.1)
 pm$search()$build()$record()$plot()
 pm$reset()$search()$build()$record(write=F)$plot()
 pm$params <- list(sdw = 0)
